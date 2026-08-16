@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>開發者環境 · Windows / macOS · Raspberry Pi 5 感測器影像調適繁中教學站</title>
+<meta name="description" content="Windows 與 macOS 開發者操作本平台的做法、差異與注意事項">
+<link rel="icon" type="image/svg+xml" href="assets/favicon.svg">
+<link rel="stylesheet" href="assets/site.css">
+</head>
+<body>
+<div class="container">
+<header><h1>開發者環境：Windows / macOS</h1>
+<p class="subtitle">rpi5-sensor-isp-zh-tw 是 Linux 平台——本頁說明從 Windows / macOS 主機操作它的完整做法、差異與陷阱</p></header>
+<nav class="topnav">  <a href="index.html">首頁</a>
+  <a href="map.html">概念地圖</a>
+  <a href="learning-path.html">學習路線</a>
+  <a href="docs/index.html">單元教學</a>
+  <a href="dev-env.html">開發者環境</a>
+  <a href="about.html">關於</a></nav>
+<div class="back-link"><a href="index.html">← 回首頁</a></div>
+<div class="guide">
+
+  <div class="callout info">
+    <strong>為什麼需要這頁：</strong>Raspberry Pi 5 跑 Raspberry Pi OS（Linux）。你的開發機是 Windows 或 macOS，但板子跑 Linux——連線、燒錄、傳檔、文字編碼的做法在兩種系統差異很大。
+  </div>
+
+  <h2>0. 兩種開發者路徑總覽</h2>
+  <table>
+    <tr><th>任務</th><th>Windows</th><th>macOS</th><th>共通注意</th></tr>
+    <tr><td>SSH 連線</td><td>內建 OpenSSH / PuTTY / <strong>WSL2（推薦）</strong></td><td>內建 <code>ssh</code></td><td>先 ping 同網段</td></tr>
+    <tr><td>映像燒錄（SD/eMMC）</td><td>Raspberry Pi Imager / balenaEtcher</td><td>Raspberry Pi Imager / balenaEtcher / <code>dd</code></td><td><strong>選對磁碟！</strong></td></tr>
+    <tr><td>檔案傳輸</td><td>WinSCP / <code>scp</code> / <code>sftp</code></td><td><code>scp</code> / <code>sftp</code> / <code>rsync</code></td><td>路徑用 <code>/</code></td></tr>
+    <tr><td>序列埠</td><td>PuTTY / Tera Term</td><td><code>screen</code> / <code>minicom</code></td><td>確認 COM / tty 名稱</td></tr>
+    <tr><td>編輯器</td><td>VS Code / Notepad++</td><td>VS Code / 內建</td><td>用 UTF-8、LF</td></tr>
+  </table>
+
+  <h2>1. Windows 開發者：怎麼做</h2>
+  <h3>1.1 SSH 連線（三種方式）</h3>
+  <div class="demo-block"><div class="demo-label">方式 A：Windows 10/11 內建 OpenSSH（PowerShell）</div><pre>ssh ubuntu@<RPi5 的 IP 或 raspberrypi.local></pre></div>
+  <div class="demo-block"><div class="demo-label">方式 B：WSL2（推薦，最接近 Linux 開發環境）</div><pre><span class="hl-c"># 在 WSL2 終端內，與 Linux 行為一致</span>
+ssh ubuntu@<RPi5 的 IP 或 raspberrypi.local>
+scp 檔名 ubuntu@<RPi5 的 IP 或 raspberrypi.local>:/home/...</pre></div>
+  <p class="hint">方式 C（舊習慣）：<strong>PuTTY</strong>——Host 填 IP、Port 22、連線類型 SSH。</p>
+  <div class="callout warn"><strong>Windows 注意：</strong>① 若 <code>ssh</code> 無法辨識，安裝「OpenSSH 用戶端」（設定→選用功能）② 連不上先 <code>ping</code> 確認同網段、關閉對 ssh 的防火牆干擾。</div>
+
+  <h3>1.2 映像燒錄（SD 卡 / eMMC）</h3>
+  <div class="demo-block"><div class="demo-label">Raspberry Pi Imager（Win）</div><pre>1. 下載安裝 Raspberry Pi Imager
+2. 選裝置 → 選映像（可先設定 ssh/wifi/帳號）
+3. 選 SD 卡 → 寫入</pre></div>
+  <div class="callout warn"><strong>Windows 陷阱：</strong>Windows 常把 SD 卡視為「可移動磁碟」，寫入前會跳出權限確認——<strong>不要誤選硬碟</strong>。燒完 Windows 可能顯示「要格式化」——<strong>忽略</strong>，那是 Linux 分割。</div>
+
+  <h3>1.3 檔案傳輸</h3>
+  <div class="demo-block"><div class="demo-label">WinSCP（GUI）</div><pre>主機: <RPi5 的 IP 或 raspberrypi.local>  使用者: ubuntu  密碼/金鑰
+拖曳即可上傳/下載；可保留或轉換換行符（LF/CRLF）</pre></div>
+  <div class="demo-block"><div class="demo-label">PowerShell scp</div><pre>scp .\tuning.json ubuntu@<RPi5 的 IP 或 raspberrypi.local>:/home/ubuntu/</pre></div>
+
+  <h3>1.4 序列埠（Console）</h3>
+  <div class="demo-block"><div class="demo-label">PuTTY 序列</div><pre>連線類型: Serial
+Serial line: COM3（裝置管理員確認）
+Speed: 115200</pre></div>
+
+  <h3>1.5 Windows 必踩雷清單</h3>
+  <ul>
+    <li><strong>CRLF vs LF</strong>：Windows 編輯器存的檔案含 <code>\r\n</code>，丟上 Linux 後 <code>bash</code>/<code>python</code> 常報錯。VS Code 右下角切「LF」，或上板後 <code>dos2unix 檔名</code>。</li>
+    <li><strong>UTF-8 / BOM</strong>：中文註解與設定檔用 <strong>UTF-8（無 BOM）</strong>。記事本另存會加 BOM → 用 VS Code / Notepad++。</li>
+    <li><strong>路徑分隔</strong>：Windows 用 <code>\</code>、Linux 用 <code>/</code>。scp/ssh 內一律 <code>/</code>。</li>
+    <li><strong>別用記事本改重要設定</strong>：可能改壞編碼與換行。</li>
+    <li><strong>PowerShell 引號</strong>：參數含特殊字元要正確跳脫，習慣用單引號。</li>
+  </ul>
+
+  <h2>2. macOS 開發者：怎麼做</h2>
+  <h3>2.1 SSH 連線（內建）</h3>
+  <div class="demo-block"><div class="demo-label">Terminal</div><pre>ssh ubuntu@<RPi5 的 IP 或 raspberrypi.local>
+<span class="hl-c"># 可用 Bonjour 主機名：raspberrypi.local</span></pre></div>
+  <div class="demo-block"><div class="demo-label">序列埠 console</div><pre>ls /dev/cu.usbserial-*        <span class="hl-c"># 找 USB 轉序列裝置</span>
+screen /dev/cu.usbserial-XXXX 115200
+<span class="hl-c"># 離開：Ctrl-A 然後 K（再 Y）</span></pre></div>
+
+  <h3>2.2 映像燒錄</h3>
+  <div class="demo-block"><div class="demo-label">Raspberry Pi Imager / balenaEtcher（推薦）</div><pre>下載映像 → 選磁碟 → 寫入</pre></div>
+  <div class="demo-block"><div class="demo-label">或 dd（進階）</div><pre>diskutil list                          <span class="hl-c"># 找 SD 卡磁碟識別碼</span>
+diskutil unmountDisk /dev/diskN
+sudo dd if=映像.img of=/dev/rdiskN bs=4m status=progress
+diskutil eject /dev/diskN</pre></div>
+  <div class="callout warn"><strong>macOS 陷阱（最重要）：</strong>dd 用 <code>/dev/rdiskN</code>（raw），比 disk 快很多；但<strong>選錯磁碟 = 資料全毀</strong>。務必先 <code>diskutil list</code> 再三確認。</div>
+
+  <h3>2.3 檔案傳輸</h3>
+  <div class="demo-block"><div class="demo-label">scp / rsync</div><pre>scp tuning.json ubuntu@<RPi5 的 IP 或 raspberrypi.local>:/home/ubuntu/
+rsync -avz ./資料夾/ ubuntu@<RPi5 的 IP 或 raspberrypi.local>:/home/ubuntu/資料夾/</pre></div>
+
+  <h3>2.4 macOS 必踩雷清單</h3>
+  <ul>
+    <li><strong>隱藏檔</strong>：<code>.nojekyll</code>、<code>.git</code> 以點開頭，Finder 看不到 → 用 <code>ls -la</code>。</li>
+    <li><strong>金鑰權限</strong>：SSH 私鑰要 <code>chmod 600</code>、<code>~/.ssh</code> 要 <code>700</code>，否則 ssh 拒絕。</li>
+    <li><strong>換行</strong>：mac 也是 LF，較少問題；從 Windows 拷過來的檔要 <code>dos2unix</code>。</li>
+    <li><strong>終端編碼</strong>：Terminal 用 UTF-8，避免中文亂碼。</li>
+    <li><strong>從 Windows 轉來的同事檔案</strong>：常帶 CRLF 與 BOM——接手先檢查。</li>
+  </ul>
+
+  <h2>3. Windows vs macOS 差異一覽（重點）</h2>
+  <table>
+    <tr><th>面向</th><th>Windows</th><th>macOS</th><th>誰更省事</th></tr>
+    <tr><td>SSH 內建</td><td>Win10+ 內建（要開選用功能）</td><td>原生內建</td><td>macOS</td></tr>
+    <tr><td>最接近 Linux 的環境</td><td>WSL2（需安裝）</td><td>Terminal 即類 Unix</td><td>macOS 開箱即用；WSL2 後 Windows 也行</td></tr>
+    <tr><td>序列埠</td><td>需 PuTTY/Tera Term + 驅動</td><td>內建 screen，需 USB 驅動</td><td>差不多</td></tr>
+    <tr><td>燒錄風險</td><td>誤選磁碟機</td><td>dd 誤選磁碟 = 資料全毀</td><td>都用 Imager 最安全</td></tr>
+    <tr><td>換行陷阱</td><td><strong>高（CRLF 常踩）</strong></td><td>低（LF）</td><td>macOS</td></tr>
+    <tr><td>中文編碼</td><td>易遇 ANSI/Big5</td><td>預設 UTF-8</td><td>macOS</td></tr>
+  </table>
+  <div class="callout"><strong>給 Windows 開發者的最省心路徑：</strong>裝 <strong>WSL2</strong> + <strong>VS Code</strong>（Remote-SSH）——之後所有指令都跟 macOS/Linux 一致，繞開 CRLF 與路徑問題。給 macOS 開發者：直接 Terminal + scp/rsync + VS Code Remote-SSH 即可。</div>
+
+  <h2>4. 與本課操作流程的銜接</h2>
+  <p>建立好連線與傳檔後，後續課程的每個單元都能照做：</p>
+  <ul>
+    <li>單元 3/6：在板上的 terminal 執行 <code>i2cdetect</code>、<code>i2ctransfer</code>（Windows 用 WSL/PuTTY；macOS 用內建 ssh）。</li>
+    <li>單元 5：<code>rpicam-*</code> 指令與 RAW/DNG 下載回主機分析。</li>
+    <li>單元 14：tuning 檔用 VS Code 在本機編輯（UTF-8 + LF）→ <code>scp</code> 上板 → 重啟測試。</li>
+  </ul>
+
+  <div class="outcome">
+    <strong>看完這頁你應該能說出：</strong>
+    <ul>
+      <li>Windows 三種 SSH 方式與最推薦的 WSL2 路徑。</li>
+      <li>macOS 的 ssh / screen / scp / rsync 用法。</li>
+      <li>CRLF、BOM、路徑分隔、金鑰權限、磁碟誤選等關鍵陷阱。</li>
+      <li>兩種系統的差異與「誰更省事」。</li>
+    </ul>
+  </div>
+
+  <h2>延伸閱讀</h2>
+  <ul>
+    <li>回到<a href="index.html">課程總覽</a>。</li>
+    <li><a href="https://learn.microsoft.com/windows/wsl/" rel="noopener">WSL2 官方文件</a></li>
+    <li><a href="https://www.raspberrypi.com/software/" rel="noopener">Raspberry Pi Imager</a></li>
+  </ul>
+
+</div>
+<footer>這是 Raspberry Pi 5 感測器影像調適繁中教學站 · 由 OpenCode 建置<br>
+  <span class="footer-license">本站教學內容（繁體中文解說）為本站原創，採 CC-BY-4.0；register 與指令引用自 <a href="https://www.raspberrypi.com/documentation/" rel="noopener">Raspberry Pi 官方文件</a>、<a href="https://libcamera.org/" rel="noopener">libcamera</a> 與公開感測器資料（OV5647 公開 datasheet）。</span></footer>
+</div></body></html>
