@@ -91,6 +91,23 @@ EOF</pre></div>
 <li>分段色溫各測一次，確保無色溫突變。</li>
 <li>記錄每組「光源 + gains + CCM」對照表，供回歸與重現。</li>
 </ul>
+<h2>11.7 深入：AWB gains 與色溫的對應</h2>
+<div class="demo-block"><div class="demo-label">典型 gains（示意，依感測器）</div><pre>3000K:  RedGain=1.7  BlueGain=1.2
+4500K:  RedGain=1.4  BlueGain=1.3
+6500K:  RedGain=1.1  BlueGain=1.6
+7500K:  RedGain=1.0  BlueGain=2.0</pre></div>
+<p class="hint">趨勢固定：低色溫補 R、高色溫補 B。實際值隨感測器/鏡頭而異，用灰卡實測。</p>
+
+<h2>11.8 深入：CCM 為什麼要分色溫</h2>
+<p>感測器對不同光譜（低/高色溫）的響應曲線不同 → 單一 CCM 無法同時校正兩種光源 → 分兩套（低溫/高溫）並依 AWB 色溫插值。</p>
+<div class="callout warn"><strong>陷阱：</strong>若只做一套 CCM，在另一色溫下色彩會明顯偏移。驗收時要在「至少兩個色溫」下量 ΔE。</div>
+
+<h2>11.9 練習：完整灰卡+色卡校正</h2>
+<ol>
+<li>灰卡校正 AWB gains（記錄色溫→gains 表）。</li>
+<li>色卡算 CCM（至少兩色溫）。</li>
+<li>量測校正前後 ΔE，確認達標。</li>
+</ol>
 
 
   <div class="outcome">

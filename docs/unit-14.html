@@ -102,6 +102,29 @@
 回歸: 日光場景未見明顯副作用 ✓
 附圖: tuning_20260816_v3.jpg</pre></div>
 <div class="callout"><strong>紀律：</strong>可重現的調校 = 完整的 log。半年後你才能回答「這參數為什麼是 0.5」。</div>
+<h2>14.8 深入：Sharpen 與 NR 的互動</h2>
+<p>兩者是「翹翹板」：NR 抹掉細節 → Sharpen 拉回邊緣 → 但 Sharpen 同時放大 NR 殘留的雜訊。正確順序：</p>
+<ol>
+<li>先定 NR（壓雜訊到可接受）。</li>
+<li>再調 Sharpen（只補邊緣）。</li>
+<li>反覆微調兩者，每次對比「平坦區」與「紋理區」。</li>
+</ol>
+<div class="callout warn"><strong>塑膠感：</strong>NR 過強 + Sharpen 過強 = 平坦區死平、邊緣過銳（halo）。用 200% 放大檢視。</div>
+
+<h2>14.9 Worked Example：tuning 檔的版本管理</h2>
+<div class="demo-block"><div class="demo-label">推薦習慣</div><pre>tuning/             <span class="hl-c"># 放進 git</span>
+  base.json          <span class="hl-c"># 原始</span>
+  v1-black.json      <span class="hl-c"># 黑位校正後</span>
+  v2-lsc.json        <span class="hl-c"># LSC 後</span>
+  v3-awb-ccm.json    <span class="hl-c"># 色彩後</span>
+  v4-final.json      <span class="hl-c"># NR/Sharpen 後</span></pre></div>
+<p class="hint">每個版本對應一次驗收，出問題可以二分法回退。</p>
+
+<h2>14.10 練習</h2>
+<ol>
+<li>建立你的 tuning 版本管理資料夾。</li>
+<li>完成一次「黑位→LSC→色彩→NR」的完整流程並各留一個版本。</li>
+</ol>
 
 
   <div class="outcome">

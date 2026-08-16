@@ -106,6 +106,27 @@ done</pre></div>
 <tr><td><code>unicam: Failed to...</code></td><td>CSI 收資料失敗</td></tr>
 <tr><td>無任何 ov5647 訊息</td><td>DT 沒掛 overlay / 驅動沒載</td></tr>
 </table>
+<h2>6.8 深入：OV5647 的完整 init sequence 概念</h2>
+<p>感測器開機後不是「能用」，而是需要驅動寫入一整串 init register（時序、解析度、增益、AWB…）。ov5647.c 內含 <code>ov5647_2lane_480Mbps</code> 等表格，就是這份 init。</p>
+<div class="callout"><strong>工程意義：</strong>你不需要背這些值，但要理解「感測器從上電到出圖 = 上電時序 + init register」。若畫面異常，先確認「是否走完 init」——而不是懷疑某個 register 值。</div>
+
+<h2>6.9 深入：幀率與曝光行數的關係</h2>
+<p>曝光時間（行數）不能超過幀總行數（frame length）。若設的曝光 > 幀長，感測器會「卡在曝光」→ 幀率掉或全黑。</p>
+<div class="demo-block"><div class="demo-label">檢查曝光 vs 幀長</div><pre><span class="hl-c"># 讀曝光 register</span>
+sudo i2ctransfer -y 22 w2@0x36 0x35 0x01 r1
+sudo i2ctransfer -y 22 w2@0x36 0x35 0x02 r1
+<span class="hl-c"># 讀 frame length（0x380E/0x380F）</span>
+sudo i2ctransfer -y 22 w2@0x36 0x38 0x0e r1</pre></div>
+<div class="callout warn"><strong>常見症狀：</strong>曝光設太大 → 畫面「有時黑有時亮」或幀率掉一半。libcamera 會限制曝光範圍，但手動寫 register 時要自己小心。</div>
+
+<h2>6.10 練習：完整 Bring-up 演練</h2>
+<ol>
+<li>拔掉排線 → list-cameras，記錄「空」。</li>
+<li>插回排線 → list-cameras，確認「有」。</li>
+<li>i2cdetect 讀 ID，確認 0x5647。</li>
+<li>rpicam-hello 預覽，確認畫面。</li>
+<li>把每一步的 dmesg 記錄下來。</li>
+</ol>
 
 
   <div class="outcome">

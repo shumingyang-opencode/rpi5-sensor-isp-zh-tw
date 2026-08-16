@@ -100,6 +100,26 @@ $ sudo i2ctransfer -y 22 w2@0x36 0x30 0x34 r1
 
 <h2>3.7 安全準則</h2>
 <div class="callout warn"><strong>正式流程走驅動，手動只除錯：</strong>libcamera / 感測器驅動會維護 register 的一致性（例如曝光與幀率關係）。手動 i2ctransfer 適合驗證與理解；寫壞 register 可重上電回復。切勿在 streaming 進行中亂改 register。</div>
+<h2>3.8 深入：I2C 時序與上拉電阻</h2>
+<p>I2C 可靠度與上拉電阻、匯流排電容高度相關：</p>
+<table>
+<tr><th>參數</th><th>典型</th><th>影響</th></tr>
+<tr><td>上拉電阻</td><td>1.8k–4.7k</td><td>太小→電流大；太大→上升緣慢</td></tr>
+<tr><td>匯流排電容</td><td>≤ 400 pF</td><td>線過長→訊號變形</td></tr>
+<tr><td>速度</td><td>400 kHz（Fast）</td><td>OV 支援；不穩可降 100 kHz</td></tr>
+</table>
+<div class="callout warn"><strong>「讀不到 0x36」的另一種可能：</strong>上拉電阻缺失或過大 → SDA 無法拉高 → 所有讀寫都回 0xFF。用示波器看 SCL/SDA 波形可一錘定音。</div>
+
+<h2>3.9 Worked Example：完整的 I2C 讀取時序</h2>
+<div class="pipe"><span class="step">S</span><span class="arr">→</span><span class="step">0x6C（0x36<<1|0，寫）</span><span class="arr">→</span><span class="step">0x30</span><span class="arr">→</span><span class="step">0x0A</span><span class="arr">→</span><span class="step">Sr（重複起始）</span><span class="arr">→</span><span class="step">0x6D（讀）</span><span class="arr">→</span><span class="step">0x56</span><span class="arr">→</span><span class="step">NACK+STOP</span></div>
+<p class="hint"><code>i2ctransfer -y 22 w2@0x36 0x30 0x0a r1</code> 就對應「寫 2 byte 位址後讀 1 byte」這整段時序。看懂這個，你就懂所有 I2C 感測器。</p>
+
+<h2>3.10 練習：寫一支 I2C 讀寫小工具</h2>
+<ol>
+<li>用 <code>i2ctransfer</code> 讀回 0x300A/0x300B。</li>
+<li>改讀 0x3500（曝光高位），記錄值。</li>
+<li>練習「寫後回讀」驗證。</li>
+</ol>
 
 
   <div class="outcome">

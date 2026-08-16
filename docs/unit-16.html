@@ -62,6 +62,29 @@
 <li>所有測試條件寫進文件，供日後重現。</li>
 </ul>
 <div class="callout"><strong>課程完成：</strong>你已具備從感測器初始化、串流到完整調校的能力，可獨立處理一顆 OV 感測器。</div>
+<h2>16.5 深入：客製感測器接入的除錯策略</h2>
+<ul>
+<li><strong>循序驗證</strong>：I2C 通 → 讀 ID → media 節點 → 出圖 → RAW → 調校。</li>
+<li><strong>每次只換一個變數</strong>：先換驅動、再換 overlay、再換板子。</li>
+<li><strong>保留對照組</strong>：一顆官方模組當「基準」。</li>
+</ul>
+<div class="callout warn"><strong>常見死法：</strong>「一次改了一堆」→ 出問題無法歸因。接新感測器時，嚴格「一次一變數」。</div>
+
+<h2>16.6 Worked Example：新感測器 bring-up 檢查清單</h2>
+<div class="demo-block"><div class="demo-label">checklist</div><pre>□ 硬體：CSI lane / I2C / reset / clock 腳位對齊
+□ DT overlay：compatible / reg / clocks / reset-gpios
+□ 驅動：是否有現成 / 是否需改 init table
+□ dmesg：probe 成功？讀到 ID？
+□ 出圖：--list-cameras / 預覽有畫面？
+□ RAW：Bayer order / 黑位 / 缺陷像素
+□ 調校：黑位 → LSC → AWB/CCM → NR/Sharpen</pre></div>
+
+<h2>16.7 總複習：把你的完整流程寫成文件</h2>
+<ol>
+<li>寫一份「你的感測器 bring-up SOP」。</li>
+<li>寫一份「你的調校流程與參數」。</li>
+<li>兩份都放進 repo，成為團隊資產。</li>
+</ol>
 
 
   <div class="outcome">

@@ -107,6 +107,28 @@ dmesg | grep -i -E "unicam|csi|ov5647" | tail -5</pre></div>
 <li><strong>「CSI 很快所以沒問題」</strong>：HS 訊號對排線品質敏感；排線過長/折到會掉 frame。</li>
 <li><strong>「libcamera 是相機」</strong>：libcamera 是<strong>框架</strong>，感測器控制與 ISP 調校都在它之下。</li>
 </ul>
+<h2>1.6 深入：CSI-2 D-PHY 的 HS/LP 電氣</h2>
+<p>除錯「訊號層」問題時，D-PHY 的電氣參數是關鍵：</p>
+<table>
+<tr><th>參數</th><th>HS（高速）</th><th>LP（低功耗）</th></tr>
+<tr><td>訊號</td><td>差動（D±）</td><td>單端（CMOS 1.2V）</td></tr>
+<tr><td>擺幅</td><td>約 200 mV（100–300）</td><td>0–1.2 V</td></tr>
+<tr><td>用途</td><td>傳 pixel 資料</td><td>控制（BTA/reset）</td></tr>
+<tr><td>時脈</td><td>DDR 雙沿</td><td>低速</td></tr>
+</table>
+<div class="callout warn"><strong>常見 HS 問題：</strong>① 排線過長/折到 → 眼圖閉合、掉幀 ② 電源不乾淨 → HS 電平抖動 ③ 接地不良 → 共模雜訊。沒有示波器時，用「dmesg 是否出現 CSI 錯誤」與「幀率是否穩定」當間接指標。</div>
+
+<h2>1.7 深入了解 libcamera 的 PipeLine 初始化順序</h2>
+<div class="pipe"><span class="step">偵測 media 節點</span><span class="arr">→</span><span class="step">列舉 subdev</span><span class="arr">→</span><span class="step">match sensor driver</span><span class="arr">→</span><span class="step">建立 Camera</span><span class="arr">→</span><span class="step">載入 tuning</span><span class="arr">→</span><span class="step">可設定控制</span></div>
+<p class="hint">libcamera 啟動時依 media graph 找出「感測器 + ISP」並組 Camera；tuning 檔在首次使用該 Camera 時載入。若 list-cameras 看得到相機，代表這一串都成功。</p>
+
+<h2>1.8 練習：確認你的硬體就緒</h2>
+<ol>
+<li>列出本機 2 個相機連接器：<code>sudo dtoverlay -a | grep cam</code>。</li>
+<li>確認 overlay 清單含 ov5647。</li>
+<li>用 <code>dmesg | grep -i -E 'unicam|ov5647'</code> 確認無 error。</li>
+<li>把結果記錄下來（寫入你的 bring-up log）。</li>
+</ol>
 
 
   <div class="outcome">

@@ -72,6 +72,21 @@ RPi5:      i2ctransfer -y 22 w2@0x36 0x30 0x0a r1
 Orange Pi: i2ctransfer -y 3  w2@0x3c 0x30 0x0a r1
 Orin/Thor: i2ctransfer -y 0  w2@0x36 0x30 0x0a r1
 <span class="hl-c"># 差別只在匯流排編號與位址，register 相同</span></pre></div>
+<h2>15.6 深入：從 RPi5 轉到 NVIDIA 平台的對照心法</h2>
+<table>
+<tr><th>你在 RPi5 做的事</th><th>NVIDIA 對應</th></tr>
+<tr><td>libcamera controls</td><td>Argus / tegracam controls</td></tr>
+<tr><td>tuning json</td><td>NVIDIA 內部 tuning</td></tr>
+<tr><td>rpicam-still --raw</td><td>argus raw / v4l2</td></tr>
+<tr><td>i2ctransfer 讀 register</td><td>一樣（register 相同）</td></tr>
+</table>
+<div class="callout"><strong>核心：</strong>概念（曝光/白平衡/LSC/NR）、流程（校正→美化→回歸）、register（0x300A 等）都一樣；變的只有「介面」。學會原理 = 隨時可換平台。</div>
+
+<h2>15.7 練習</h2>
+<ol>
+<li>列出「同樣想讀 sensor ID」在四平台的指令。</li>
+<li>說明為何 register 相同而介面不同。</li>
+</ol>
 
 
   <div class="outcome">

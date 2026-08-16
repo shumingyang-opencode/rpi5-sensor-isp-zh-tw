@@ -107,6 +107,31 @@ EOF</pre></div>
 <div class="callout warn"><strong>重要：</strong>同一顆感測器在不同解析度（2592 vs 1296）的 <strong>Bayer order 與 binning 行為不同</strong>。調校與回歸必須<strong>鎖定單一模式</strong>，否則 LSC 網格、CCM 在不同 size 下會不一致。</div>
 <div class="demo-block"><div class="demo-label">列出模式並鎖定</div><pre>rpicam-hello --list-cameras          <span class="hl-c"># 記錄要調校的 mode</span>
 rpicam-still --width 2592 --height 1944 --raw -o full.dng   <span class="hl-c"># 固定全解析</span></pre></div>
+<h2>8.9 深入：10-bit RAW 的 packing 與解包</h2>
+<p>10-bit 資料在記憶體中的 packing 方式影響解碼：</p>
+<table>
+<tr><th>packing</th><th>說明</th></tr>
+<tr><td>Unpacked（16-bit）</td><td>每像素 2 byte，低 6 bit 無效</td></tr>
+<tr><td>Packed（MIPI CSI-2）</td><td>5 byte 塞 4 像素（4×10=40 bit）</td></tr>
+</table>
+<div class="callout warn"><strong>常見錯誤：</strong>把 packed 的 10-bit 當 8-bit 解 → 出現「條紋狀假影」與錯誤色彩。rawpy/dcraw 會自動處理；手寫解析時要留意。</div>
+
+<h2>8.10 深入：Bayer order 在 DNG 的驗證</h2>
+<div class="demo-block"><div class="demo-label">用 raw_pattern 一錘定音</div><pre>python3 - <<'EOF'
+import rawpy
+r = rawpy.imread('t.dng')
+print('raw_pattern:')
+for row in r.raw_pattern:
+    print(' ', row)   <span class="hl-c"># 0=R,1=G,2=B（依 libraw 慣例）</span>
+EOF</pre></div>
+<p class="hint">比對 datasheet 的 RGGB 起點，確認平台設定一致。</p>
+
+<h2>8.11 練習</h2>
+<ol>
+<li>用 test.dng 驗證 Bayer order（raw_pattern）。</li>
+<li>量測黑位與 white_level。</li>
+<li>記錄「本平台 RAW 的正確解析參數」。</li>
+</ol>
 
 
   <div class="outcome">

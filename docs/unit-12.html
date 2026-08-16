@@ -107,6 +107,23 @@ EOF</pre></div>
 <li>暗角比變化 >5% → 必須重新校正 LSC。</li>
 <li>同鏡頭不同光圈/焦距（若變焦）→ shading 曲線不同 → 各拍一組。</li>
 </ol>
+<h2>12.9 深入：shading 的色偏機制</h2>
+<p>鏡頭不只亮度衰減，R/G/B 因微透鏡與濾鏡的入射角響應不同，<strong>角落偏色</strong>是獨立於亮度的問題——這就是為什麼 LSC 要 R/Gr/Gb/B 分通道。</p>
+<div class="callout"><strong>判斷：</strong>角落「又暗又偏紫/綠」→ 需要分通道 LSC；只有暗不偏色 → 亮度補償即可。</div>
+
+<h2>12.10 Worked Example：暗角比的量測與目標</h2>
+<div class="demo-block"><div class="demo-label">量測</div><pre><span class="hl-c"># 均勻灰拍圖</span>
+center = 中央區平均
+corner = 四角平均
+暗角比 = corner / center
+<span class="hl-c"># 目標：校正後 > 0.9（原可能 0.7 甚至更低）</span></pre></div>
+
+<h2>12.11 練習</h2>
+<ol>
+<li>拍均勻灰，量測校正前暗角比。</li>
+<li>若可用，跑 LSC 校正工具。</li>
+<li>再量一次，確認提升。</li>
+</ol>
 
 
   <div class="outcome">

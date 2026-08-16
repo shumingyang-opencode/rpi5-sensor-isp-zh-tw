@@ -78,6 +78,28 @@ EOF</pre></div>
   rpicam-still --raw --gain $g --shutter 20000 -o b$g.dng
   python3 -c "import rawpy,numpy as np;r=rawpy.imread('b$g.dng').raw_image;print('g=$g 黑位=%.1f'%r[400:1600,400:1600].mean())"
 done</pre></div>
+<h2>7.7 深入：Black Level 校正對統計的影響</h2>
+<p>黑位設錯不只是「暗部偏灰」——它會<strong>污染 AE/AWB 統計</strong>：</p>
+<ul>
+<li>黑位過低（扣太少）→ 統計亮度偏高 → AE 把畫面調暗。</li>
+<li>黑位過高 → 暗部被截黑 → 統計偏低 → AE 過曝。</li>
+<li>分通道黑位不均 → AWB 判斷色偏 → 白平衡錯誤。</li>
+</ul>
+<div class="callout"><strong>調校鐵律：</strong>黑位是「統計的地基」。地基歪，所有自動演算法都歪。所以單元 7 的黑位量測是調校的第一步。</div>
+
+<h2>7.8 Worked Example：黑位與動態範圍</h2>
+<div class="demo-block"><div class="demo-label">量測與計算</div><pre><span class="hl-c"># 遮鏡頭：黑位 = 102（10-bit 值）</span>
+<span class="hl-c"># 開鏡頭對均勻亮：飽和值 = 1023</span>
+<span class="hl-c"># 可用動態範圍 = 1023 - 102 = 921 階</span>
+<span class="hl-c"># 若黑位校正設錯（如扣到 200）→ 暗部 200~1023 被壓縮</span>
+<span class="hl-c"># → 暗部階調損失</span></pre></div>
+
+<h2>7.9 練習</h2>
+<ol>
+<li>遮鏡頭拍 RAW，量測黑位四通道。</li>
+<li>檢查 max（hot pixel 候選）。</li>
+<li>把黑位值寫進「預備寫入 tuning 的清單」。</li>
+</ol>
 
 
   <div class="outcome">

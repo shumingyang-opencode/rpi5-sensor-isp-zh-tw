@@ -107,6 +107,31 @@ picam2.stop()</pre></div>
 <tr><td>色彩全錯</td><td>Bayer order / AWB 未校正</td><td>單元 8/11</td></tr>
 <tr><td>預覽卡頓/掉幀</td><td>解析度過高、HDMI 預覽慢</td><td>降解析度</td></tr>
 </table>
+<h2>5.8 深入：rpicam-apps 的完整旗標解讀</h2>
+<p>除了基本拍照，rpicam-apps 是調校的「瑞士刀」：</p>
+<table>
+<tr><th>旗標</th><th>作用</th><th>調校場景</th></tr>
+<tr><td><code>--brightness/--contrast/--saturation</code></td><td>簡易調整</td><td>快速試</td></tr>
+<tr><td><code>--ev</code></td><td>EV 補償</td><td>AE 偏移</td></tr>
+<tr><td><code>--metering</code></td><td>測光模式</td><td>背光場景</td></tr>
+<tr><td><code>--awb</code></td><td>AWB 模式</td><td>固定色溫</td></tr>
+<tr><td><code>--shutter/--gain</code></td><td>固定曝光</td><td>可重現測試</td></tr>
+<tr><td><code>--tuning-file</code></td><td>指定 tuning 檔</td><td>A/B 測試 tuning</td></tr>
+</table>
+<div class="demo-block"><div class="demo-label">A/B 比較兩個 tuning 檔</div><pre>rpicam-still --tuning-file v1.json --shutter 20000 --gain 1 -o v1.jpg
+rpicam-still --tuning-file v2.json --shutter 20000 --gain 1 -o v2.jpg</pre></div>
+
+<h2>5.9 練習：建立你的「標準測試拍攝」腳本</h2>
+<div class="demo-block"><div class="demo-label">test_capture.sh</div><pre>#!/bin/bash
+# 固定參數拍 RAW，供後續所有單元使用
+rpicam-still --raw -o test.dng \
+  --shutter 20000 --gain 1.0 --awb off --awbgains 1.0,1.0
+echo "已存 test.dng（RAW）"</pre></div>
+<ol>
+<li>建立並執行上述腳本。</li>
+<li>確認 test.dng 產生。</li>
+<li>記錄「你看到的畫面」與「RAW 存在」兩件事。</li>
+</ol>
 
 
   <div class="outcome">

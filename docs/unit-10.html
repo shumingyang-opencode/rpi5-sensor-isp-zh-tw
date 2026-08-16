@@ -88,6 +88,29 @@ picam2.set_controls({"ExposureTime": 20000})   <span class="hl-c"># 50Hz 整數�
 <tr><td>高光爆掉</td><td>AE 只看平均 → 改高光優先約束或點測光</td></tr>
 </table>
 <div class="callout"><strong>除錯核心：</strong>先判斷 AE 是否「受限」。受限 → 物理補光或放寬範圍；不受限 → 才查測光/收斂參數。不要一上來就亂調增益。</div>
+<h2>10.6 深入：測光模式的實務差異</h2>
+<table>
+<tr><th>模式</th><th>演算法</th><th>適用</th><th>陷阱</th></tr>
+<tr><td>矩陣</td><td>全畫面加權平均</td><td>一般</td><td>大亮區誤導</td></tr>
+<tr><td>中心加權</td><td>中間權重高</td><td>人物置中</td><td>主角不在中間</td></tr>
+<tr><td>點測光</td><td>單點</td><td>精準主體</td><td>點選錯就全錯</td></tr>
+</table>
+<div class="callout"><strong>實務：</strong>逆光場景 → 點測光對準主體，或 EV 補償 + 高光優先。沒有「最佳模式」，只有「最適合場景」。</div>
+
+<h2>10.7 Worked Example：banding 的曝光計算</h2>
+<div class="demo-block"><div class="demo-label">50Hz 場景</div><pre><span class="hl-c"># 市電 50Hz → 半週期 10ms</span>
+曝光 = 10000 * N  µs    (N = 1,2,3...)
+  例如 10000 / 20000 / 30000 µs
+
+<span class="hl-c"># 若設 15000µs（非整數倍）→ 出現 banding</span>
+<span class="hl-c"># libcamera 有 banding 支援；手動固定曝光時要自己算</span></pre></div>
+
+<h2>10.8 練習</h2>
+<ol>
+<li>在日光燈下拍一張，觀察是否有 banding。</li>
+<li>固定曝光為 50Hz 整數倍，再拍一張比較。</li>
+<li>用 --info 觀察 AE 收斂的曝光/增益值。</li>
+</ol>
 
 
   <div class="outcome">

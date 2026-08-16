@@ -104,6 +104,26 @@ for name in ['before.dng','after.dng']:
     hot = (raw > raw.mean() + 10*raw.std()).sum()
     print(name, 'hot pixels:', hot, 'max:', raw.max())
 EOF</pre></div>
+<h2>13.8 深入：雜訊測量的標準方法</h2>
+<ul>
+<li><strong>黑框</strong>（遮鏡頭）：量 read noise + dark current。</li>
+<li><strong>灰框</strong>（18% 灰卡）：量總雜訊（shot + read）。</li>
+<li><strong>不同曝光</strong>：分離 dark current（隨曝光增）與固定底噪。</li>
+</ul>
+<div class="demo-block"><div class="demo-label">分離 dark current</div><pre>python3 - <<'EOF'
+import rawpy, numpy as np
+for ms in [1000, 5000, 20000]:
+    raw = rawpy.imread(f'black_{ms}.dng').raw_image
+    print(f'曝光{ms}µs: 黑位均值={raw.mean():.1f}')
+    <span class="hl-c"># 均值隨曝光線性增 → slope 即 dark current</span>
+EOF</pre></div>
+
+<h2>13.9 練習：建立「增益上限」決策</h2>
+<ol>
+<li>量測 gain=1/2/4/8 的 σ。</li>
+<li>畫出 σ vs gain 曲線。</li>
+<li>決定「可接受的增益上限」並記錄。</li>
+</ol>
 
 
   <div class="outcome">

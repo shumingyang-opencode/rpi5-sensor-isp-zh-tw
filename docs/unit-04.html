@@ -78,6 +78,27 @@ dmesg | grep -i -E "ov5647|unicam"</pre></div>
 <li><strong>改 overlay 沒重啟</strong>：device tree 在開機時載入，改後需 reboot。</li>
 <li><strong>reg 位址與硬體不符</strong>：overlay 宣告 0x36，但板子實體位址不同 → probe 失敗。</li>
 </ul>
+<h2>4.6 深入：libcamera 的 Sensor 驅動介面</h2>
+<p>libcamera 對感測器驅動有一套「標準控制介面」，ov5647.c 實作：</p>
+<table>
+<tr><th>libcamera 控制</th><th>驅動如何滿足</th></tr>
+<tr><td>ExposureTime</td><td>寫 0x3500–0x3503（依行數換算）</td></tr>
+<tr><td>AnalogueGain</td><td>寫 0x350A–0x350B（查 gain map）</td></tr>
+<tr><td>ColourGains</td><td>寫 AWB gains register</td></tr>
+<tr><td>VBlank/HBlank</td><td>寫 timing register（影響幀率）</td></tr>
+</table>
+<div class="callout"><strong>關鍵領悟：</strong>你設「ExposureTime=20000µs」，驅動負責把它變成「正確的 register 值」。讀懂這層轉換，就是從「會用」到「懂」的分水嶺。</div>
+
+<h2>4.7 深入：DT overlay 與內核匹配的完整鏈</h2>
+<div class="pipe"><span class="step">dtoverlay=ov5647</span><span class="arr">→</span><span class="step">firmware 併入 DTB</span><span class="arr">→</span><span class="step">core 掃描 compatible</span><span class="arr">→</span><span class="step">of_device_id 匹配 ov5647.c</span><span class="arr">→</span><span class="step">probe</span><span class="arr">→</span><span class="step">media 節點建立</span></div>
+<p class="hint">compatible 寫錯一個字 → 驅動不 probe。這是「list-cameras 空」的常見根因。</p>
+
+<h2>4.8 練習</h2>
+<ol>
+<li>執行 <code>dmesg | grep -i ov5647</code>，找 probe 結果。</li>
+<li>執行 <code>rpicam-hello --list-cameras</code>，記錄輸出的 modes。</li>
+<li>把 DT 宣告的 I2C 位址與 <code>i2cdetect</code> 結果對照。</li>
+</ol>
 
 
   <div class="outcome">

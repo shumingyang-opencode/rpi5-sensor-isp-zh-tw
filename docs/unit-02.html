@@ -83,6 +83,35 @@ SNR = N / √N = √N。訊號增 4 倍 → SNR 增 2 倍（+6 dB）。
 <tr><td>XCLK</td><td>6–27 MHz（典型 24）</td><td>單元 6 PLL</td></tr>
 </table>
 <div class="callout"><strong>「RAW 天花板」原則：</strong>雜訊底、動態範圍、色彩靈敏度都在感測器層定型。ISP 只能「校正逼近」，不能「無中生有」。調校的極限由此決定——理解它，才知道「調不上去」是感測器問題還是流程問題。</div>
+<h2>2.5 深入：曝光、增益與 SNR 的完整數學</h2>
+<p>一張圖的訊號鏈：</p>
+<div class="pipe"><span class="step">N = η·P·Texp（電子）</span><span class="arr">→</span><span class="step">V = N·CG（電荷→電壓）</span><span class="arr">→</span><span class="step">G_ana（類比增益）</span><span class="arr">→</span><span class="step">ADC</span></div>
+<ul>
+<li><strong>shot noise</strong>：σ_shot = √N（電子域）。</li>
+<li><strong>read noise</strong>：σ_read（常數，電子域）。</li>
+<li><strong>總雜訊</strong>：σ = √(σ_shot² + σ_read²)。</li>
+<li><strong>SNR（dB）</strong> = 20·log10(N / σ)。</li>
+</ul>
+<div class="demo-block"><div class="demo-label">Worked Example：增益對 SNR 的影響</div><pre><span class="hl-c"># 場景：低光，訊號只有 N=400 e-，read noise σr=8</span>
+σ_shot = √400 = 20
+σ = √(400 + 64) ≈ 21.5
+SNR = 20·log10(400/21.5) ≈ 25.4 dB
+
+<span class="hl-c"># 若把類比增益×4（訊號也×4，雜訊也×4）</span>
+<span class="hl-c"># SNR 不變：25.4 dB（雜訊被等比放大）</span>
+
+<span class="hl-c"># 若改曝光×4（真實訊號 N=1600）</span>
+σ_shot = √1600 = 40；σ = √(1600+64) ≈ 40.8
+SNR = 20·log10(1600/40.8) ≈ 31.9 dB  <span class="hl-c"># +6.5 dB！</span>
+<span class="hl-c"># 結論：曝光勝過增益</span></pre></div>
+<div class="callout"><strong>工程口訣：</strong>「能加曝光就別加增益」不是口號，是 SNR 數學的必然結果。</div>
+
+<h2>2.6 練習：Bayer 觀察</h2>
+<ol>
+<li>固定參數拍 RAW（<code>rpicam-still --raw -o t.dng</code>）。</li>
+<li>用 rawpy 讀四通道均值，確認 RGGB 位置。</li>
+<li>對紅/綠/藍三色光各拍一張，觀察哪個通道最亮。</li>
+</ol>
 
 
   <div class="outcome">
