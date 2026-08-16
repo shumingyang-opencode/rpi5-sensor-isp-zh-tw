@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>單元 6 · Sensor Bring-up 與除錯 · Raspberry Pi 5 感測器影像調適繁中教學站</title>
-<meta name="description" content="上電時序、PLL、media 管線、決策樹">
+<meta name="description" content="上電時序、PLL 位元級、MIPI、決策樹">
 <link rel="icon" type="image/svg+xml" href="../assets/favicon.svg">
 <link rel="stylesheet" href="../assets/site.css">
 </head>
@@ -13,7 +13,7 @@
 
 <header>
   <h1>單元 6 · Sensor Bring-up 與除錯</h1>
-  <p class="subtitle">上電時序、PLL、media 管線、決策樹</p>
+  <p class="subtitle">上電時序、PLL 位元級、MIPI、決策樹</p>
 </header>
 
 <nav class="topnav">  <a href="../index.html">首頁</a>
@@ -25,55 +25,73 @@
 <div class="back-link"><a href="index.html">← 單元教學</a></div>
 
 <div class="guide">
-<h2>Bring-up 四件事</h2>
-<table>
-<tr><th>檢查項</th><th>驗證</th><th>工具</th></tr>
-<tr><td><strong>電源</strong></td><td>AVDD/DOVDD/DVDD 到位、時序</td><td>示波器 / 電表</td></tr>
-<tr><td><strong>Clock</strong></td><td>XCLK 有輸出、PLL 鎖定</td><td>示波器 / register</td></tr>
-<tr><td><strong>I2C</strong></td><td>i2cdetect + 讀 ID</td><td>i2c-tools</td></tr>
-<tr><td><strong>MIPI</strong></td><td>media graph、dmesg 無錯</td><td>media-ctl / dmesg</td></tr>
-</table>
-
-<h2>上電時序（重要）</h2>
-<div class="pipe"><span class="step">電源穩定</span><span class="arr">→</span><span class="step">XCLK</span><span class="arr">→</span><span class="step">RESET 釋放（t≥若干 ms）</span><span class="arr">→</span><span class="step">I2C 可通</span><span class="arr">→</span><span class="step">MIPI 輸出</span></div>
-<div class="callout warn"><strong>最常見錯誤：</strong>RESET 未釋放就下 I2C——register「看似能寫但沒生效」。OV5647 的 RESET 由 CAM_GPIO 控制，overlay 已處理；客製板要自己確保時序。</div>
-
-<h2>PLL / Clock（OV5647）</h2>
-<p>XCLK 典型 24 MHz，感測器內 PLL 產生主時脈。PLL 錯 → 畫面異常 fps 或全黑。</p>
+<h2>6.1 上電時序（OV5647 需求）</h2>
 <table class="reg-table">
-<tr><th>Register</th><th>功能</th><th>常見值</th></tr>
-<tr><td class="reg">0x3034</td><td>MIPI 10-bit PLL pre-div</td><td class="val">0x18</td></tr>
-<tr><td class="reg">0x3035</td><td>PLL divider</td><td class="val">0x31</td></tr>
-<tr><td class="reg">0x3036</td><td>PLL multiplier</td><td class="val">0x69</td></tr>
-<tr><td class="reg">0x3037</td><td>PLL control（含 lock bit）</td><td class="val">0x11</td></tr>
+<tr><th>步驟</th><th>電源域</th><th>電壓</th><th>時序</th></tr>
+<tr><td>1</td><td>AVDD（analog）</td><td>2.8 V</td><td>先穩定</td></tr>
+<tr><td>2</td><td>DOVDD（I/O）</td><td>1.8 V</td><td>與 AVDD 相依</td></tr>
+<tr><td>3</td><td>DVDD（digital）</td><td>1.5 V</td><td>再穩定</td></tr>
+<tr><td>4</td><td>XCLK</td><td>24 MHz</td><td>電源穩定後</td></tr>
+<tr><td>5</td><td>RESET 釋放</td><td>—</td><td>XCLK 後 ≥ 若干 ms</td></tr>
+<tr><td>6</td><td>I2C</td><td>—</td><td>RESET 後才可通</td></tr>
 </table>
-<p class="hint">這些是驅動在 init 時寫入的公開範例值；以 ov5647.c 的 <code>ov5647_2lane_480Mbps</code> 表為準。</p>
+<div class="callout warn"><strong>最常見錯誤：</strong>RESET 未釋放就下 I2C → register「看似能寫但沒生效」。官方模組由 overlay 管理；客製板要自製時序。</div>
 
-<h2>用 media-ctl 看整條管線</h2>
-<div class="demo-block"><div class="demo-label">media graph</div><pre>sudo media-ctl -p -d /dev/media0
-<span class="hl-c"># 預期看到：ov5647 → unicam（CSI-2）→ 各 stream 節點</span></pre></div>
+<h2>6.2 PLL：從 XCLK 到像素時脈（位元級）</h2>
+<p>OV5647 由 XCLK（24 MHz）經內部 PLL 產生主時脈。關鍵 register：</p>
+<table class="reg-table">
+<tr><th>Register</th><th>欄位</th><th>典型值</th><th>意義</th></tr>
+<tr><td class="reg">0x3034</td><td>PLL pre-div</td><td class="val">0x18</td><td>輸入分頻</td></tr>
+<tr><td class="reg">0x3035</td><td>PLL div</td><td class="val">0x31</td><td>VCO 分頻</td></tr>
+<tr><td class="reg">0x3036</td><td>PLL multiplier</td><td class="val">0x69</td><td>VCO 倍頻</td></tr>
+<tr><td class="reg">0x3037</td><td>PLL ctrl（含 lock bit）</td><td class="val">0x11</td><td>bit[7]? 可查 lock</td></tr>
+</table>
+<div class="callout"><strong>工程檢查：</strong>改 PLL 前先記錄 0x3037；改後回讀確認。PLL 錯 → fps 異常或全黑。以 ov5647.c 的 <code>ov5647_2lane_480Mbps</code> init 表為準。</div>
 
-<h2>Bring-up 決策樹</h2>
-<div class="demo-block"><div class="demo-label">「相機沒畫面」決策樹</div><pre>1. rpicam-hello --list-cameras 有相機？
-   ├─ 沒有 → 檢查 overlay / dmesg / 排線
+<h2>6.3 MIPI 介面 register 與 link</h2>
+<table class="reg-table">
+<tr><th>Register</th><th>功能</th><th>典型值</th></tr>
+<tr><td class="reg">0x4740</td><td>MIPI 介面控制</td><td class="val">0x22</td></tr>
+<tr><td class="reg">0x4741</td><td>lane 數</td><td class="val">0x00（2-lane）</td></tr>
+<tr><td class="reg">0x4742</td><td>clock/data 設定</td><td class="val">0x0b</td></tr>
+</table>
+
+<h2>6.4 media 管線完整走查</h2>
+<div class="demo-block"><div class="demo-label">media-ctl -p 關鍵實體</div><pre>$ media-ctl -p -d /dev/media0
+- entity 3: ov5647 0-0036 (1 pad, 1 link)
+            type V4L2 subdev
+    pad0: Source [fmt:SGBRG10_1X10/2592x1944]
+- entity 6: unicam (1 pad, 1 link)
+            type V4L2 subdev
+    pad0: Sink [fmt:SGBRG10_1X10/2592x1944]</pre></div>
+<p class="hint">看到感測器 pad 的格式 → 管線已設定。</p>
+
+<h2>6.5 「相機沒畫面」完整決策樹（含 dmesg 範例）</h2>
+<div class="demo-block"><div class="demo-label">決策樹</div><pre>1. rpicam-hello --list-cameras
+   ├─ 空 ─→ 排線？dmesg 有 error？
+   │        dmesg: "ov5647 ... probe failure" → 電源/clock/位址
    └─ 有 ─┐
-2. i2cdetect 看到 0x36？讀到 0x5647？
-   ├─ 沒有 → 電源/reset/I2C 位址問題
+2. i2cdetect -y 22 看到 0x36？
+   ├─ 無 ─→ 上電/reset/位址（8-bit?）
    └─ 有 ─┐
-3. rpicam-hello 預覽？
-   ├─ 黑 → 曝光 0 / AE 未跑 / 鏡頭蓋
-   └─ 有畫面 ─ 完成基本 bring-up ✅</pre></div>
+3. 讀 0x300A/B = 0x56/0x47？
+   ├─ 錯 ─→ 是別的感測器？位址錯？
+   └─ 對 ─┐
+4. rpicam-hello 預覽
+   ├─ 黑 ─→ 曝光 0？AE 關？鏡頭蓋？banding？
+   └─ 有畫面 ── 基本 bring-up ✅</pre></div>
 
-<h2>Register dump 實作</h2>
-<div class="demo-block"><div class="demo-label">dump 一組 register</div><pre><span class="hl-c"># 讀曝光相關三 register</span>
-for r in 0x3500 0x3501 0x3502 0x3503; do
-  echo -n "$r: "; sudo i2ctransfer -y 22 w2@0x36 ${r:2:2} ${r:4:2} r1
+<h2>6.6 Register dump 完整範例</h2>
+<div class="demo-block"><div class="demo-label">dump 曝光與 PLL</div><pre>for r in 0x300a 0x300b 0x3034 0x3035 0x3036 0x3037          0x3500 0x3501 0x3502 0x3503 0x350a 0x350b; do
+  h=${r:2:2}; l=${r:4:2}
+  printf "%s: " "$r"
+  sudo i2ctransfer -y 22 w2@0x36 0x$h 0x$l r1
 done</pre></div>
 
 
   <div class="outcome">
     <strong>看完這單元你應該能說出：</strong>
-    <ul><li>Bring-up 四件事與各自工具。</li><li>上電時序的關鍵與 RESET 陷阱。</li><li>OV5647 PLL register 群與「畫面異常」關聯。</li><li>用 media-ctl 檢視管線。</li><li>照決策樹排解「沒畫面」。</li></ul>
+    <ul><li>OV5647 上電時序六步與電壓。</li><li>PLL register 位元級與工程檢查。</li><li>MIPI 介面 register。</li><li>media 管線走查。</li><li>完整 Bring-up 決策樹與 register dump。</li></ul>
   </div>
 
   <h2>延伸閱讀</h2>
@@ -90,7 +108,7 @@ done</pre></div>
 </div>
 
 <footer>這是 Raspberry Pi 5 感測器影像調適繁中教學站 · 由 OpenCode 建置<br>
-  <span class="footer-license">本站教學內容（繁體中文解說）為本站原創，採 CC-BY-4.0；register 與指令引用自 <a href="https://www.raspberrypi.com/documentation/" rel="noopener">Raspberry Pi 官方文件</a>、<a href="https://libcamera.org/" rel="noopener">libcamera</a> 與公開感測器資料。</span></footer>
+  <span class="footer-license">本站教學內容（繁體中文解說）為本站原創，採 CC-BY-4.0；register 與指令引用自 <a href="https://www.raspberrypi.com/documentation/" rel="noopener">Raspberry Pi 官方文件</a>、<a href="https://libcamera.org/" rel="noopener">libcamera</a> 與公開感測器資料（OV5647 公開 datasheet）。</span></footer>
 
 </div>
 </body>

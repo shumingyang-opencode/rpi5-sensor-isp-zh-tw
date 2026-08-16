@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>單元 3 · 感測器通訊介面 · Raspberry Pi 5 感測器影像調適繁中教學站</title>
-<meta name="description" content="I2C 實作、讀 ID、register 讀寫、page">
+<meta name="description" content="I2C 位元級、register 讀寫、page 機制">
 <link rel="icon" type="image/svg+xml" href="../assets/favicon.svg">
 <link rel="stylesheet" href="../assets/site.css">
 </head>
@@ -13,7 +13,7 @@
 
 <header>
   <h1>單元 3 · 感測器通訊介面</h1>
-  <p class="subtitle">I2C 實作、讀 ID、register 讀寫、page</p>
+  <p class="subtitle">I2C 位元級、register 讀寫、page 機制</p>
 </header>
 
 <nav class="topnav">  <a href="../index.html">首頁</a>
@@ -25,52 +25,78 @@
 <div class="back-link"><a href="index.html">← 單元教學</a></div>
 
 <div class="guide">
-<h2>OV5647 的 I2C 配置</h2>
-<table class="reg-table">
-<tr><th>項目</th><th>值</th></tr>
-<tr><td>7-bit 位址</td><td class="val">0x36</td></tr>
-<tr><td>register 位址寬度</td><td>16-bit（高 byte 在前）</td></tr>
-<tr><td>RPi 匯流排</td><td>i2c-22（Camera 0）/ i2c-10（Camera 1）</td></tr>
-<tr><td>總線速度</td><td>400 kHz（I2C 快速模式）</td></tr>
+<h2>3.1 I2C 協定位元級回顧</h2>
+<p>I2C（Inter-Integrated Circuit）兩線：<strong>SDA</strong>（資料）+ <strong>SCL</strong>（時脈），開集極 + 上拉電阻。</p>
+<table>
+<tr><th>訊號</th><th>規則</th></tr>
+<tr><td>START</td><td>SCL 高時 SDA 由高→低</td></tr>
+<tr><td>STOP</td><td>SCL 高時 SDA 由低→高</td></tr>
+<tr><td>ACK</td><td>接收方在每 byte 後把 SDA 拉低 1 bit</td></tr>
+<tr><td>資料有效</td><td>SDA 在 SCL 高電平期間必須穩定</td></tr>
+</table>
+<p><strong>OV5647 的寫入序列（16-bit register 位址）：</strong></p>
+<div class="pipe"><span class="step">START</span><span class="arr">→</span><span class="step">0x36<<1 | 0（寫）</span><span class="arr">→</span><span class="step">位址高 byte</span><span class="arr">→</span><span class="step">位址低 byte</span><span class="arr">→</span><span class="step">資料</span><span class="arr">→</span><span class="step">STOP</span></div>
+<div class="callout"><strong>位元組序：</strong>OV 用<strong>高 byte 在前</strong>（big-endian）。例：register 0x300A → 先送 0x30 再送 0x0A。</div>
+
+<h2>3.2 實作：掃描與讀 ID（第一優先驗證）</h2>
+<div class="demo-block"><div class="demo-label">i2cdetect（Camera 0 = i2c-22）</div><pre>$ sudo i2cdetect -y 22
+     0  1  2  3  4  5  6  7  8  9  a  b  c  d  e  f
+30:                   36                        --   <span class="hl-c">← 0x36 有回應</span>
+</pre></div>
+<div class="demo-block"><div class="demo-label">讀感測器 ID</div><pre>$ sudo i2cget -y 22 0x36 0x300a
+0x56
+$ sudo i2cget -y 22 0x36 0x300b
+0x47
+<span class="hl-c"># 組合 = 0x5647 → OV5647 ✓</span></pre></div>
+<table>
+<tr><th>Register</th><th>內容</th><th>意義</th></tr>
+<tr><td class="reg">0x300A</td><td class="val">0x56</td><td>感測器型號高位（'V'）</td></tr>
+<tr><td class="reg">0x300B</td><td class="val">0x47</td><td>感測器型號低位（OV5647）</td></tr>
+</table>
+<div class="callout"><strong>讀不到 0x5647？</strong>順序檢查：電源 → XCLK → RESET → I2C 位址（含 8-bit 轉換）→ 匯流排編號。完整決策樹在單元 6。</div>
+
+<h2>3.3 i2ctransfer：16-bit 位址讀寫（含回讀驗證）</h2>
+<div class="demo-block"><div class="demo-label">寫 register 0x3034 = 0x1E</div><pre><span class="hl-c"># w3 = 寫 3 byte：0x30 0x34 0x1e（位址高、位址低、資料）</span>
+$ sudo i2ctransfer -y 22 w3@0x36 0x30 0x34 0x1e
+<span class="hl-c"># 回讀：w2 送位址，r1 讀 1 byte</span>
+$ sudo i2ctransfer -y 22 w2@0x36 0x30 0x34 r1
+0x1e</pre></div>
+<table>
+<tr><th>參數</th><th>意義</th></tr>
+<tr><td><code>w3@0x36 0x30 0x34 0x1e</code></td><td>對 0x36 寫 3 byte（0x30 0x34 0x1e）</td></tr>
+<tr><td><code>w2@0x36 0x30 0x34 r1</code></td><td>寫 2 byte 位址後讀 1 byte</td></tr>
 </table>
 
-<h2>動手一：掃描匯流排找感測器</h2>
-<div class="demo-block"><div class="demo-label">i2cdetect</div><pre>sudo i2cdetect -y 22
-<span class="hl-c"># 預期輸出：在 0x36 出現 "36"（有裝置回應）</span>
-<span class="hl-c"># 若空無一物 → 上電/reset/I2C 位址問題（見單元 6）</span></pre></div>
-
-<h2>動手二：讀感測器 ID（bring-up 第一步）</h2>
-<div class="demo-block"><div class="demo-label">讀 0x300A / 0x300B</div><pre>sudo i2cget -y 22 0x36 0x300a
-<span class="hl-c"># 預期：0x56（OV5647 型號 byte）</span>
-sudo i2cget -y 22 0x36 0x300b
-<span class="hl-c"># 預期：0x47</span>
-<span class="hl-c"># 完整：0x5647 → 確認是 OV5647</span></pre></div>
-<div class="callout"><strong>為什麼讀 ID：</strong>這是最快的「感測器是否活著」測試。讀得到 = 上電、reset、I2C 都對。</div>
-
-<h2>動手三：讀寫 register（含 page）</h2>
-<p>OV5647 有 <strong>bank（page）</strong>機制：部分 register 需先切換 <code>0xFD/0xFE</code> 或依 <code>0x3008</code> 的 bank bit 才能存取。</p>
-<div class="demo-block"><div class="demo-label">i2ctransfer 讀寫（16-bit 位址）</div><pre><span class="hl-c"># 寫 register 0x3034 = 0x1E（PLL 設定範例）</span>
-sudo i2ctransfer -y 22 w3@0x36 0x30 0x34 0x1e
-<span class="hl-c"># 回讀驗證</span>
-sudo i2ctransfer -y 22 w2@0x36 0x30 0x34 r1
-<span class="hl-c"># 預期輸出：0x1e</span></pre></div>
-<p class="hint"><code>i2cget</code> 適合 8-bit 位址感測器；OV 用 16-bit 位址，習慣用 <code>i2ctransfer</code>。</p>
-
-<h2>關鍵 register 群（後續單元會用到）</h2>
+<h2>3.4 OV5647 的 page/bank 機制（重要）</h2>
+<p>OV5647 部分 register 需要先「切換 bank」才能存取：</p>
 <table class="reg-table">
-<tr><th>Register</th><th>功能</th><th>用途</th></tr>
-<tr><td class="reg">0x300A/0x300B</td><td>感測器 ID</td><td>驗證裝置</td></tr>
-<tr><td class="reg">0x3034–0x3037</td><td>PLL / clock</td><td>單元 6</td></tr>
-<tr><td class="reg">0x3500–0x3503</td><td>曝光時間</td><td>單元 10（AE）</td></tr>
-<tr><td class="reg">0x350A–0x350B</td><td>類比增益</td><td>單元 10（AE）</td></tr>
-<tr><td class="reg">0x4740–0x4742</td><td>MIPI 介面</td><td>單元 6</td></tr>
+<tr><th>Register</th><th>角色</th></tr>
+<tr><td class="reg">0x3000</td><td>sccb_bank 控制</td></tr>
+<tr><td class="reg">0x3008[6]</td><td>sccb_slave_id_en</td></tr>
+<tr><td class="reg">0x3100</td><td>sccb_slave_id（切換感測器 id 模式）</td></tr>
 </table>
-<div class="callout warn"><strong>警告：</strong>正式流程請透過感測器驅動設定 register（libcamera 控制），手動 <code>i2ctransfer</code> 只適合除錯與理解。寫壞 register 可能讓感測器當機（重上電可回復）。</div>
+<div class="callout warn"><strong>陷阱：</strong>某些 OV 感測器（如 OV5640 系列）用 0xFD/0xFE 切 page。OV5647 的 bank 主要透過 0x3000 控制。寫錯 bank 的 register = 寫到「錯誤的位址」而不知。務必以 datasheet 的 register table 為準。</div>
+
+<h2>3.5 關鍵 register 群總表（後續單元引用）</h2>
+<table class="reg-table">
+<tr><th>Register</th><th>功能</th><th>單元</th></tr>
+<tr><td class="reg">0x300A/0x300B</td><td>感測器 ID</td><td>本單元 / 6</td></tr>
+<tr><td class="reg">0x3034–0x3037</td><td>PLL / clock 分頻</td><td>6</td></tr>
+<tr><td class="reg">0x3100–0x3103</td><td>時序控制</td><td>6</td></tr>
+<tr><td class="reg">0x3500–0x3503</td><td>曝光時間（AEC）</td><td>10</td></tr>
+<tr><td class="reg">0x350A–0x350B</td><td>類比增益（AGC）</td><td>10</td></tr>
+<tr><td class="reg">0x3800–0x3814</td><td>裁切/解析度（timing）</td><td>8</td></tr>
+<tr><td class="reg">0x3A00–0x3A03</td><td>banding filter（50/60Hz）</td><td>10</td></tr>
+<tr><td class="reg">0x4740–0x4742</td><td>MIPI 介面</td><td>6</td></tr>
+</table>
+
+<h2>3.6 安全準則</h2>
+<div class="callout warn"><strong>正式流程走驅動，手動只除錯：</strong>libcamera/驅動會維護 register 一致性。手動 i2ctransfer 適合驗證與理解；寫壞可重上電回復。切勿在 streaming 中亂改 register。</div>
 
 
   <div class="outcome">
     <strong>看完這單元你應該能說出：</strong>
-    <ul><li>OV5647 的 I2C 配置（位址/16-bit 位址/匯流排）。</li><li>用 i2cdetect 掃描、用 i2ctransfer 讀寫。</li><li>讀 0x300A/0x300B 驗證感測器身分。</li><li>OV page 機制與關鍵 register 群。</li></ul>
+    <ul><li>I2C 協定位元級（START/ACK/16-bit 位址序）。</li><li>用 i2cdetect/i2cget 讀 OV5647 ID。</li><li>用 i2ctransfer 讀寫並回讀驗證。</li><li>OV5647 page/bank 機制與關鍵 register 群。</li></ul>
   </div>
 
   <h2>延伸閱讀</h2>
@@ -87,7 +113,7 @@ sudo i2ctransfer -y 22 w2@0x36 0x30 0x34 r1
 </div>
 
 <footer>這是 Raspberry Pi 5 感測器影像調適繁中教學站 · 由 OpenCode 建置<br>
-  <span class="footer-license">本站教學內容（繁體中文解說）為本站原創，採 CC-BY-4.0；register 與指令引用自 <a href="https://www.raspberrypi.com/documentation/" rel="noopener">Raspberry Pi 官方文件</a>、<a href="https://libcamera.org/" rel="noopener">libcamera</a> 與公開感測器資料。</span></footer>
+  <span class="footer-license">本站教學內容（繁體中文解說）為本站原創，採 CC-BY-4.0；register 與指令引用自 <a href="https://www.raspberrypi.com/documentation/" rel="noopener">Raspberry Pi 官方文件</a>、<a href="https://libcamera.org/" rel="noopener">libcamera</a> 與公開感測器資料（OV5647 公開 datasheet）。</span></footer>
 
 </div>
 </body>

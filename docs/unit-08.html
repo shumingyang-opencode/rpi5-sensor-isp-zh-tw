@@ -25,44 +25,50 @@
 <div class="back-link"><a href="index.html">← 單元教學</a></div>
 
 <div class="guide">
-<h2>為什麼調校前先懂 RAW</h2>
-<p>ISP 處理過就「回不去」——雜訊、黑位、色彩都要在 RAW 上看才準。</p>
-
-<h2>V4L2 Bayer format（RPi）</h2>
+<h2>8.1 V4L2 Bayer format 與 fourcc</h2>
 <table>
-<tr><th>fourcc</th><th>說明</th><th>OV5647</th></tr>
-<tr><td><code>SRGGB10</code></td><td>10-bit Bayer（RGGB 起點）</td><td>✅ 預設 RAW</td></tr>
-<tr><td><code>YUYV</code>/<code>NV12</code></td><td>ISP 處理後</td><td>✅ 輸出</td></tr>
+<tr><th>fourcc</th><th>排列</th><th>OV5647</th></tr>
+<tr><td><code>SRGGB10</code></td><td>R 起點 10-bit</td><td>✅ 預設 RAW</td></tr>
+<tr><td><code>SGBRG10</code></td><td>Gb 起點</td><td>CSI 呈現（見下）</td></tr>
+<tr><td><code>YUYV</code>/<code>NV12</code></td><td>ISP 輸出</td><td>✅</td></tr>
 </table>
+<div class="callout"><strong>order 迷思：</strong>libcamera 顯示 <code>SGBRG10_CSI2P</code> 是 CSI 傳輸層的排列；實際感測器輸出是 <strong>RGGB</strong>。driver 會處理轉換——但你在<strong>手動解析 RAW</strong> 時必須以 datasheet 的 RGGB 為準。</div>
 
-<h2>驗證 Bayer order（關鍵實作）</h2>
-<div class="demo-block"><div class="demo-label">拍 RAW 並檢查四個角落</div><pre>rpicam-still --raw -o test.dng
-<span class="hl-c"># 用 dcraw / libraw 轉出，或直接解析 dng</span>
-python3 - <<'EOF'
-import struct
-# 讀 dng 的 RAW 前幾 byte，看 R 通道位置是否如預期（RGGB）
+<h2>8.2 驗證 Bayer order（關鍵實作）</h2>
+<div class="demo-block"><div class="demo-label">用 dng 檢查四角落</div><pre>python3 - <<'EOF'
+import rawpy, numpy as np
+raw = rawpy.imread('t.dng').raw_image
+h, w = raw.shape
+roi = raw[h//4:3*h//4, w//4:3*w//4]
+# 四個 Bayer 位置的平均
+cells = [roi[0::2,0::2].mean(), roi[0::2,1::2].mean(),
+         roi[1::2,0::2].mean(), roi[1::2,1::2].mean()]
+print('RGGB?', 'R=%.1f Gr=%.1f Gb=%.1f B=%.1f' % tuple(cells))
+# 拍「紅色場景」時 R 位置應最亮 → 驗證 order
 EOF</pre></div>
-<div class="callout warn"><strong>Bayer order 錯的症狀：</strong>色彩全亂（綠→紅、紅→藍）。OV5647 是 <strong>RGGB</strong>（Gr 在第一列第二位）。</div>
+<div class="callout warn"><strong>症狀：</strong>order 錯 → 色彩全亂（紅變綠等）。拍純色卡即可判別。</div>
 
-<h2>bit depth 與動態範圍</h2>
+<h2>8.3 bit depth 與動態範圍</h2>
 <table>
 <tr><th>位元</th><th>灰階</th><th>意義</th></tr>
 <tr><td>8</td><td>256</td><td>輸出常見</td></tr>
 <tr><td>10</td><td>1024</td><td>OV5647 RAW</td></tr>
-<tr><td>12</td><td>4096</td><td>高動態範圍需要</td></tr>
+<tr><td>12</td><td>4096</td><td>高動態需要</td></tr>
 </table>
-<div class="callout info"><strong>調校陷阱：</strong>RAW 10-bit → 輸出 8-bit，tone mapping / gamma 決定暗部細節去留——這是「看起來有階調 vs 一片黑」的分界。</div>
+<div class="callout info"><strong>陷阱：</strong>RAW 10-bit → 輸出 8-bit，tone mapping/gamma 決定暗部細節去留。</div>
 
-<h2>RAW 分析：黑位與缺陷像素</h2>
-<div class="demo-block"><div class="demo-label">遮住鏡頭拍 RAW，統計暗部</div><pre><span class="hl-c"># 鏡頭蓋蓋上，拍 RAW</span>
-rpicam-still --raw -o black.dng
-<span class="hl-c"># 用 Python/ImageMagick 統計黑框的均值與離群點（hot pixel）</span></pre></div>
-<p class="hint">黑位值與 hot pixel 是單元 13（降噪）的輸入。</p>
+<h2>8.4 ROI / binning</h2>
+<ul>
+<li><strong>Full</strong>：2592×1944 全像素。</li>
+<li><strong>Binning</strong>：2×2 合併（提升感光、降解析度）。</li>
+<li>調校時固定「同 size + 同 format」，避免 binning 參數漂移。</li>
+</ul>
+<div class="demo-block"><div class="demo-label">指定解析度</div><pre>rpicam-still --width 1296 --height 972 -o half.jpg</pre></div>
 
 
   <div class="outcome">
     <strong>看完這單元你應該能說出：</strong>
-    <ul><li>RPi RAW 的 fourcc 與 10-bit。</li><li>如何驗證 Bayer order（RGGB）。</li><li>bit depth 對動態範圍的影響。</li><li>黑位與缺陷像素的 RAW 分析。</li></ul>
+    <ul><li>fourcc 與 CSI/Sensor order 的關係。</li><li>用 dng 驗證 Bayer order。</li><li>bit depth 對動態範圍影響。</li><li>ROI/binning 對調校影響。</li></ul>
   </div>
 
   <h2>延伸閱讀</h2>
@@ -79,7 +85,7 @@ rpicam-still --raw -o black.dng
 </div>
 
 <footer>這是 Raspberry Pi 5 感測器影像調適繁中教學站 · 由 OpenCode 建置<br>
-  <span class="footer-license">本站教學內容（繁體中文解說）為本站原創，採 CC-BY-4.0；register 與指令引用自 <a href="https://www.raspberrypi.com/documentation/" rel="noopener">Raspberry Pi 官方文件</a>、<a href="https://libcamera.org/" rel="noopener">libcamera</a> 與公開感測器資料。</span></footer>
+  <span class="footer-license">本站教學內容（繁體中文解說）為本站原創，採 CC-BY-4.0；register 與指令引用自 <a href="https://www.raspberrypi.com/documentation/" rel="noopener">Raspberry Pi 官方文件</a>、<a href="https://libcamera.org/" rel="noopener">libcamera</a> 與公開感測器資料（OV5647 公開 datasheet）。</span></footer>
 
 </div>
 </body>

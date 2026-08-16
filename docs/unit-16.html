@@ -25,32 +25,32 @@
 <div class="back-link"><a href="index.html">← 單元教學</a></div>
 
 <div class="guide">
-<h2>多相機</h2>
-<p>RPi5 兩組 CSI 連接器可同時跑兩顆。libcamera 以多 Camera 呈現：</p>
-<div class="demo-block"><div class="demo-label">列出所有相機與 mode</div><pre>rpicam-hello --list-cameras</pre></div>
+<h2>16.1 多相機</h2>
+<p>RPi5 兩組 CSI 可同時跑兩顆；libcamera 以多 Camera 呈現。</p>
+<div class="demo-block"><div class="demo-label">列出所有相機</div><pre>rpicam-hello --list-cameras</pre></div>
 
-<h2>客製 OV 感測器接入（核心技能，四步）</h2>
+<h2>16.2 客製 OV 感測器接入（四步，含細節）</h2>
 <ol>
-<li><strong>硬體</strong>：確認 CSI 2-lane、I2C、reset/clock GPIO。</li>
-<li><strong>DT overlay</strong>：宣告 I2C 位址、clock、reset、MIPI 通道。</li>
-<li><strong>驅動</strong>：libcamera 需感測器驅動（ov5647/ov5640/ov9281 都有現成）。</li>
-<li><strong>出圖 → 調校</strong>：先用現成驅動確認 RAW，再做黑位/LSC/色彩。</li>
+<li><strong>硬體</strong>：CSI 2-lane、I2C、reset/clock GPIO 對齊 15-pin。</li>
+<li><strong>DT overlay</strong>：宣告 I2C 位址、clocks、reset-gpios、port{csi-lane=2}。</li>
+<li><strong>驅動</strong>：確認 <code>drivers/media/i2c/</code> 有對應（ov5647/5640/9281）。</li>
+<li><strong>出圖 → 調校</strong>：先 RAW 確認，再做黑位/LSC/色彩。</li>
 </ol>
-<div class="callout warn"><strong>NDA 提醒：</strong>完整 register 表常需 NDA；本站只用<strong>公開可查</strong> register。正式開發以 OVT 官方文件為準。</div>
+<div class="callout warn"><strong>NDA 提醒：</strong>完整 register 表常需 NDA；本站只用公開資料。正式開發以 OVT 官方文件為準。</div>
 
-<h2>完整案例：調校一顆 OV5647</h2>
+<h2>16.3 完整案例：調校一顆 OV5647（七步）</h2>
 <div class="pipe"><span class="step">接板+overlay</span><span class="arr">→</span><span class="step">出圖驗證</span><span class="arr">→</span><span class="step">RAW 檢查</span><span class="arr">→</span><span class="step">黑位/LSC</span><span class="arr">→</span><span class="step">AWB/CCM</span><span class="arr">→</span><span class="step">NR/Sharpen</span><span class="arr">→</span><span class="step">回歸</span></div>
 <ol>
 <li><code>rpicam-hello --list-cameras</code> 確認偵測。</li>
 <li><code>rpicam-still --raw -o t.dng</code> 出圖 + 存 RAW。</li>
 <li>解析 RAW：Bayer order、黑位、缺陷像素。</li>
 <li>灰卡校正黑位與 LSC。</li>
-<li>色卡校正 AWB 與 CCM（單元 11）。</li>
-<li>實景微調 NR ↔ Sharpen（單元 13–14）。</li>
+<li>色卡校正 AWB 與 CCM。</li>
+<li>實景微調 NR ↔ Sharpen。</li>
 <li>室內/日光/逆光回歸。</li>
 </ol>
 
-<h2>最佳實踐總清單</h2>
+<h2>16.4 最佳實踐總清單</h2>
 <ul>
 <li>固定測試場景與光源，量化比較（σ、ΔE、直方圖）。</li>
 <li>一次只改一個參數。</li>
@@ -79,7 +79,7 @@
 </div>
 
 <footer>這是 Raspberry Pi 5 感測器影像調適繁中教學站 · 由 OpenCode 建置<br>
-  <span class="footer-license">本站教學內容（繁體中文解說）為本站原創，採 CC-BY-4.0；register 與指令引用自 <a href="https://www.raspberrypi.com/documentation/" rel="noopener">Raspberry Pi 官方文件</a>、<a href="https://libcamera.org/" rel="noopener">libcamera</a> 與公開感測器資料。</span></footer>
+  <span class="footer-license">本站教學內容（繁體中文解說）為本站原創，採 CC-BY-4.0；register 與指令引用自 <a href="https://www.raspberrypi.com/documentation/" rel="noopener">Raspberry Pi 官方文件</a>、<a href="https://libcamera.org/" rel="noopener">libcamera</a> 與公開感測器資料（OV5647 公開 datasheet）。</span></footer>
 
 </div>
 </body>

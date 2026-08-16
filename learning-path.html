@@ -22,17 +22,17 @@
   <div class="card-grid">
     <a class="card" href="docs/unit-01.html">
       <div class="c-name">單元 1 · 平台相機生態</div>
-      <div class="c-zh">CSI-2、libcamera、支援的 OV 感測器。</div>
+      <div class="c-zh">CSI-2、libcamera、感測器選擇。</div>
       <div class="c-tags"><span class="c-tag">概念</span></div>
     </a>
     <a class="card" href="docs/unit-02.html">
       <div class="c-name">單元 2 · 影像感測器基礎</div>
-      <div class="c-zh">Bayer、快門型態、感測器內部方塊。</div>
+      <div class="c-zh">Bayer、快門、感測器內部架構。</div>
       <div class="c-tags"><span class="c-tag">基礎</span></div>
     </a>
     <a class="card" href="docs/unit-03.html">
       <div class="c-name">單元 3 · 感測器通訊介面</div>
-      <div class="c-zh">I2C/SCCB、register、OV 慣例。</div>
+      <div class="c-zh">I2C 位元級、register 讀寫、page。</div>
       <div class="c-tags"><span class="c-tag">通訊</span></div>
     </a>
   </div>
@@ -47,12 +47,12 @@
     </a>
     <a class="card" href="docs/unit-05.html">
       <div class="c-name">單元 5 · 第一個鏡頭</div>
-      <div class="c-zh">rpicam-apps 拍照與串流。</div>
+      <div class="c-zh">rpicam-apps 完整流程、RAW 擷取。</div>
       <div class="c-tags"><span class="c-tag">動手做</span></div>
     </a>
     <a class="card" href="docs/unit-06.html">
       <div class="c-name">單元 6 · Bring-up 除錯</div>
-      <div class="c-zh">上電、PLL、MIPI、register dump。</div>
+      <div class="c-zh">上電、PLL、MIPI、決策樹。</div>
       <div class="c-tags"><span class="c-tag">除錯</span></div>
     </a>
   </div>
@@ -62,12 +62,12 @@
   <div class="card-grid">
     <a class="card" href="docs/unit-07.html">
       <div class="c-name">單元 7 · ISP 管線深入</div>
-      <div class="c-zh">黑位、demosaic、CCM、gamma。</div>
+      <div class="c-zh">每區塊 + 調校參數。</div>
       <div class="c-tags"><span class="c-tag">ISP</span></div>
     </a>
     <a class="card" href="docs/unit-08.html">
       <div class="c-name">單元 8 · RAW 擷取與格式</div>
-      <div class="c-zh">Bayer format、bit depth、ROI。</div>
+      <div class="c-zh">Bayer、bit depth、RAW 分析。</div>
       <div class="c-tags"><span class="c-tag">格式</span></div>
     </a>
     <a class="card" href="docs/unit-09.html">
@@ -82,27 +82,27 @@
   <div class="card-grid">
     <a class="card" href="docs/unit-10.html">
       <div class="c-name">單元 10 · 曝光 AE</div>
-      <div class="c-zh">shutter/gain/測光。</div>
+      <div class="c-zh">register 位元級 + AE 收斂。</div>
       <div class="c-tags"><span class="c-tag">調校</span></div>
     </a>
     <a class="card" href="docs/unit-11.html">
       <div class="c-name">單元 11 · 白平衡與色彩</div>
-      <div class="c-zh">AWB/CCM/gamma。</div>
+      <div class="c-zh">gains/CCM 實作。</div>
       <div class="c-tags"><span class="c-tag">調校</span></div>
     </a>
     <a class="card" href="docs/unit-12.html">
       <div class="c-name">單元 12 · 鏡頭陰影 LSC</div>
-      <div class="c-zh">shading 校正。</div>
+      <div class="c-zh">網格與校正實作。</div>
       <div class="c-tags"><span class="c-tag">調校</span></div>
     </a>
     <a class="card" href="docs/unit-13.html">
       <div class="c-name">單元 13 · 雜訊與降噪</div>
-      <div class="c-zh">NR 參數與取捨。</div>
+      <div class="c-zh">量測與 NR 調校。</div>
       <div class="c-tags"><span class="c-tag">調校</span></div>
     </a>
     <a class="card" href="docs/unit-14.html">
       <div class="c-name">單元 14 · 清晰度/HDR/工作流</div>
-      <div class="c-zh">tuning 檔與完整流程。</div>
+      <div class="c-zh">tuning 檔解析與流程。</div>
       <div class="c-tags"><span class="c-tag">調校</span></div>
     </a>
   </div>
@@ -112,7 +112,7 @@
   <div class="card-grid">
     <a class="card" href="docs/unit-15.html">
       <div class="c-name">單元 15 · 四平台比較</div>
-      <div class="c-zh">RPi5/Orange Pi/Orin/Thor 調校能力對照。</div>
+      <div class="c-zh">調校能力對照。</div>
       <div class="c-tags"><span class="c-tag">比較</span></div>
     </a>
     <a class="card" href="docs/unit-16.html">
@@ -125,5 +125,5 @@
 
 <div class="callout"><strong>看完這條路線你應該能</strong>：獨立完成 RPi5 上的 OV5647 sensor bring-up、讀懂 libcamera tuning 檔、並能對照其他平台做出調校能力比較。</div>
 <footer>這是 Raspberry Pi 5 感測器影像調適繁中教學站 · 由 OpenCode 建置<br>
-  <span class="footer-license">本站教學內容（繁體中文解說）為本站原創，採 CC-BY-4.0；register 與指令引用自 <a href="https://www.raspberrypi.com/documentation/" rel="noopener">Raspberry Pi 官方文件</a>、<a href="https://libcamera.org/" rel="noopener">libcamera</a> 與公開感測器資料。</span></footer>
+  <span class="footer-license">本站教學內容（繁體中文解說）為本站原創，採 CC-BY-4.0；register 與指令引用自 <a href="https://www.raspberrypi.com/documentation/" rel="noopener">Raspberry Pi 官方文件</a>、<a href="https://libcamera.org/" rel="noopener">libcamera</a> 與公開感測器資料（OV5647 公開 datasheet）。</span></footer>
 </div></body></html>

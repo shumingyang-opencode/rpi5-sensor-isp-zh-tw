@@ -20,57 +20,57 @@
 <div class="card-grid">
   <a class="card lv-emerald" href="unit-01.html">
     <div class="c-name">單元 1 · 平台相機生態總覽</div>
-    <div class="c-zh">CSI-2 硬體、libcamera 四層、如何選 OV 感測器板。</div>
+    <div class="c-zh">CSI-2 位元級、libcamera 四層、OV5647 模組選擇。</div>
     <div class="c-tags"><span class="c-tag">生態</span><span class="c-tag">L0</span></div>
   </a>
   <a class="card lv-emerald" href="unit-02.html">
     <div class="c-name">單元 2 · 影像感測器基礎</div>
-    <div class="c-zh">感測器運作原理 + OV5647 完整規格表。</div>
+    <div class="c-zh">感測器完整原理 + OV5647 內部方塊 + 完整規格。</div>
     <div class="c-tags"><span class="c-tag">基礎</span><span class="c-tag">L0</span></div>
   </a>
   <a class="card lv-emerald" href="unit-03.html">
     <div class="c-name">單元 3 · 感測器通訊介面</div>
-    <div class="c-zh">實作 I2C：掃描、讀 ID、讀寫 register、OV page 切換。</div>
+    <div class="c-zh">I2C 協定位元級、16-bit 位址、page、完整實作。</div>
     <div class="c-tags"><span class="c-tag">通訊</span><span class="c-tag">L0</span></div>
   </a>
   <a class="card lv-cyan" href="unit-04.html">
     <div class="c-name">單元 4 · 相機框架與驅動</div>
-    <div class="c-zh">libcamera 五大元件、unicam、DT overlay 內容、控制模型。</div>
+    <div class="c-zh">libcamera 元件原始碼、unicam、DT overlay 內容、控制鏈。</div>
     <div class="c-tags"><span class="c-tag">驅動</span><span class="c-tag">L1</span></div>
   </a>
   <a class="card lv-cyan" href="unit-05.html">
     <div class="c-name">單元 5 · 第一個鏡頭跑起來</div>
-    <div class="c-zh">啟用相機、rpicam-apps 五指令、RAW/DNG 擷取、picamera2。</div>
+    <div class="c-zh">完整指令與預期輸出、RAW/DNG、picamera2 全碼。</div>
     <div class="c-tags"><span class="c-tag">動手做</span><span class="c-tag">L1</span></div>
   </a>
   <a class="card lv-cyan" href="unit-06.html">
     <div class="c-name">單元 6 · Sensor Bring-up 與除錯</div>
-    <div class="c-zh">上電時序、PLL register、media graph、dmesg、Bring-up 決策樹。</div>
+    <div class="c-zh">上電時序、PLL register 數學、MIPI、完整決策樹與 dmesg 範例。</div>
     <div class="c-tags"><span class="c-tag">除錯</span><span class="c-tag">L1</span></div>
   </a>
   <a class="card lv-amber" href="unit-07.html">
     <div class="c-name">單元 7 · ISP 管線深入</div>
-    <div class="c-zh">RAW→ISP 各區塊逐一拆解，並對應到 tuning 參數。</div>
+    <div class="c-zh">ISP 六區塊演算法、統計、tuning 參數對應。</div>
     <div class="c-tags"><span class="c-tag">ISP</span><span class="c-tag">L2</span></div>
   </a>
   <a class="card lv-amber" href="unit-08.html">
     <div class="c-name">單元 8 · RAW 擷取與資料格式</div>
-    <div class="c-zh">RAW 格式、Bayer order 驗證、bit depth、RAW 分析實作。</div>
+    <div class="c-zh">fourcc、Bayer order 驗證、RAW 分析實作。</div>
     <div class="c-tags"><span class="c-tag">格式</span><span class="c-tag">L2</span></div>
   </a>
   <a class="card lv-amber" href="unit-09.html">
     <div class="c-name">單元 9 · 各平台 ISP 架構差異</div>
-    <div class="c-zh">感測器內 ISP vs 平台 ISP，調校分工。</div>
+    <div class="c-zh">校正分工、四平台概覽、可視性。</div>
     <div class="c-tags"><span class="c-tag">架構</span><span class="c-tag">L2</span></div>
   </a>
   <a class="card lv-fuchsia" href="unit-10.html">
     <div class="c-name">單元 10 · 曝光與自動曝光（AE）</div>
-    <div class="c-zh">曝光三要素 + OV5647 register + AE 收斂除錯。</div>
+    <div class="c-zh">曝光 register 位元級、AEC、banding、AE 收斂除錯。</div>
     <div class="c-tags"><span class="c-tag">調校</span><span class="c-tag">L3</span></div>
   </a>
   <a class="card lv-fuchsia" href="unit-11.html">
     <div class="c-name">單元 11 · 白平衡與色彩（AWB / CCM）</div>
-    <div class="c-zh">AWB gains、色溫、CCM、色彩調校實作與除錯。</div>
+    <div class="c-zh">AWB gains 位元級、灰卡校正、CCM 計算、分色溫。</div>
     <div class="c-tags"><span class="c-tag">調校</span><span class="c-tag">L3</span></div>
   </a>
   <a class="card lv-fuchsia" href="unit-12.html">
@@ -80,26 +80,26 @@
   </a>
   <a class="card lv-fuchsia" href="unit-13.html">
     <div class="c-name">單元 13 · 雜訊與降噪</div>
-    <div class="c-zh">雜訊來源、libcamera NR 調校、感測器 DPC。</div>
+    <div class="c-zh">雜訊物理、σ 量測、libcamera NR、DPC。</div>
     <div class="c-tags"><span class="c-tag">調校</span><span class="c-tag">L3</span></div>
   </a>
   <a class="card lv-fuchsia" href="unit-14.html">
     <div class="c-name">單元 14 · 清晰度、動態範圍與調校工作流</div>
-    <div class="c-zh">tuning 檔逐區塊解析、完整調校流程與紀律。</div>
+    <div class="c-zh">tuning 檔逐區塊解析、HDR、五步工作流。</div>
     <div class="c-tags"><span class="c-tag">調校</span><span class="c-tag">L3</span></div>
   </a>
   <a class="card lv-violet" href="unit-15.html">
     <div class="c-name">單元 15 · 四平台影像調校功能比較</div>
-    <div class="c-zh">四平台 ISP 能力、可調參數、工具鏈、tuning 檔比較。</div>
+    <div class="c-zh">四平台 ISP 能力、可調參數、工具鏈對照。</div>
     <div class="c-tags"><span class="c-tag">比較</span><span class="c-tag">L4</span></div>
   </a>
   <a class="card lv-violet" href="unit-16.html">
     <div class="c-name">單元 16 · 多感測器與實作案例</div>
-    <div class="c-zh">多相機、客製 OV 接入四步、完整調校案例。</div>
+    <div class="c-zh">多相機、客製 OV 四步、完整調校案例。</div>
     <div class="c-tags"><span class="c-tag">實作</span><span class="c-tag">L4</span></div>
   </a>
 </div>
 <div class="callout info"><strong>建議路線：</strong>第一次學建議照 <a href="../learning-path.html">學習路線</a> 依序進行；只想看影像調校的讀者可先跳單元 10–14。</div>
 <footer>這是 Raspberry Pi 5 感測器影像調適繁中教學站 · 由 OpenCode 建置<br>
-  <span class="footer-license">本站教學內容（繁體中文解說）為本站原創，採 CC-BY-4.0；register 與指令引用自 <a href="https://www.raspberrypi.com/documentation/" rel="noopener">Raspberry Pi 官方文件</a>、<a href="https://libcamera.org/" rel="noopener">libcamera</a> 與公開感測器資料。</span></footer>
+  <span class="footer-license">本站教學內容（繁體中文解說）為本站原創，採 CC-BY-4.0；register 與指令引用自 <a href="https://www.raspberrypi.com/documentation/" rel="noopener">Raspberry Pi 官方文件</a>、<a href="https://libcamera.org/" rel="noopener">libcamera</a> 與公開感測器資料（OV5647 公開 datasheet）。</span></footer>
 </div></body></html>
