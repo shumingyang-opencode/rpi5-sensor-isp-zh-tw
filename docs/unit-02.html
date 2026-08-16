@@ -25,17 +25,19 @@
 <div class="back-link"><a href="index.html">← 單元教學</a></div>
 
 <div class="guide">
-<h2>2.1 光電轉換的物理模型</h2>
-<div class="pipe"><span class="step">光子</span><span class="arr">→</span><span class="step">photodiode</span><span class="arr">→</span><span class="step">累積電荷 Q = η·P·Texp</span><span class="arr">→</span><span class="step">電荷→電壓（SF 源極隨耦器）</span><span class="arr">→</span><span class="step">ADC</span><span class="arr">→</span><span class="step">RAW</span></div>
+<h2>2.1 光電轉換的完整物理模型</h2>
+<div class="pipe"><span class="step">光子</span><span class="arr">→</span><span class="step">photodiode（p-n 接面空乏區）</span><span class="arr">→</span><span class="step">累積電荷 Q = η(λ)·P·Texp</span><span class="arr">→</span><span class="step">Source Follower 轉電壓</span><span class="arr">→</span><span class="step">Column ADC</span><span class="arr">→</span><span class="step">RAW</span></div>
 <ul>
-<li><strong>η（量子效率）</strong>：光子→電子轉換率，依波長。</li>
+<li><strong>η(λ)</strong>：量子效率，依波長（矽對紅外較敏感）。</li>
 <li><strong>P</strong>：入射光功率。</li>
 <li><strong>Texp</strong>：曝光時間。</li>
-<li><strong>滿阱（full well）</strong>：單像素最大電荷 → 決定動態範圍。</li>
+<li><strong>滿阱（full well）</strong>：單像素最大電荷 → 決定動態範圍上限。</li>
 </ul>
-<div class="callout"><strong>關鍵數學：</strong>shot noise σ = √N（N=訊號電子數）。訊號增 4 倍，σ 只增 2 倍 → <strong>SNR 隨訊號增。</strong>這解釋「加曝光優於加增益」：增益把訊號與雜訊等量放大，SNR 不變；曝光增加的是「真正的訊號」。</div>
+<div class="callout"><strong>核心數學（shot noise）：</strong>訊號電子數 N，shot noise σ = √N。
+SNR = N / √N = √N。訊號增 4 倍 → SNR 增 2 倍（+6 dB）。
+這直接解釋調校鐵律：<strong>「加曝光」增加真實訊號、SNR 提升；「加增益」把訊號與雜訊等比放大、SNR 不變</strong>。因此能加曝光就別加增益。</div>
 
-<h2>2.2 Bayer CFA 的物理意義</h2>
+<h2>2.2 Bayer CFA：為什麼只有 1/4 彩度</h2>
 <table class="reg-table">
 <tr><td class="val">R</td><td class="val">Gr</td><td class="val">R</td><td class="val">Gr</td></tr>
 <tr><td class="val">Gb</td><td class="val">B</td><td class="val">Gb</td><td class="val">B</td></tr>
@@ -43,42 +45,46 @@
 <tr><td class="val">Gb</td><td class="val">B</td><td class="val">Gb</td><td class="val">B</td></tr>
 </table>
 <ul>
-<li>單像素只有單色：2×2 = 1R+2G+1B。</li>
-<li><strong>Gr/Gb 差異</strong>：Gr（列向 R）與 Gb（行向 B）因製造/crosstalk 有細微差 → ISP 需 Gr/Gb 平衡校正。</li>
-<li><strong>demosaic</strong>：用鄰近像素插值重建全彩（單元 7）。</li>
+<li>單像素只蓋單色濾鏡 → RAW 每像素只有 R/Gr/Gb/B 之一。</li>
+<li><strong>Gr 與 Gb 的差異</strong>：Gr 在「列向 R」旁、Gb 在「行向 B」旁，因製造與 crosstalk 有細微差異。ISP 需要 <strong>Gr/Gb 平衡</strong>校正，否則出現「綠色棋盤紋」。</li>
+<li><strong>demosaic（去馬賽克）</strong>：以鄰近像素插值重建全彩——這是 ISP 的第一大區塊（單元 7）。</li>
 </ul>
-<div class="callout warn"><strong>Bayer order 後果：</strong>OV5647=RGGB。若平台以錯誤 order 解讀 → 色彩全錯。單元 8 教你驗證。</div>
+<div class="callout warn"><strong>Bayer order 的後果：</strong>OV5647 是 <strong>RGGB</strong>。若平台以錯誤 order 解讀（如當成 BGGR），色彩會全錯（紅↔藍、綠誤配）。單元 8 教你用 RAW 驗證。</div>
 
-<h2>2.3 快門時序：Rolling 的流水線</h2>
-<p><strong>Rolling</strong>：逐列「曝光→讀出」，曝光與讀出<strong>流水線重疊</strong>。row 之間有時間差 → 快速移動物體扭曲。</p>
+<h2>2.3 快門時序：Rolling 流水線與 Global</h2>
+<p><strong>Rolling shutter</strong>：逐列「曝光→讀出」，且<strong>曝光與讀出流水線重疊</strong>（前一行還在讀、後一行已開始曝光）。因此每一列的曝光時間起點不同：</p>
 <table>
-<tr><th>型態</th><th>時序</th><th>OV5647</th><th>問題</th></tr>
-<tr><td>Rolling</td><td>逐列曝光+讀出</td><td>✅</td><td>扭曲、banding</td></tr>
-<tr><td>Global</td><td>全像素同時曝光</td><td>—</td><td>電路複雜</td></tr>
+<tr><th>型態</th><th>時序特性</th><th>OV5647</th><th>典型問題</th></tr>
+<tr><td>Rolling</td><td>逐列曝光+讀出（有時間差）</td><td>✅</td><td>高速物體扭曲、banding</td></tr>
+<tr><td>Global</td><td>全像素同時曝光→同時讀出</td><td>—</td><td>電路複雜、成本高</td></tr>
 </table>
-<p class="hint">banding：曝光時間非電源頻率整數倍 → 亮暗條紋（單元 10 深入）。</p>
+<p class="hint"><strong>banding</strong>：若曝光時間不是「光源頻率週期的整數倍」，各列累積的交流成分不同 → 明暗條紋。50Hz 光源 → 曝光須為 10ms 整數倍；60Hz → 8.33ms（單元 10 深入）。</p>
 
-<h2>2.4 OV5647 內部方塊與完整規格</h2>
-<div class="pipe"><span class="step">Pixel Array 2592×1944</span><span class="arr">→</span><span class="step">Column ADC 10-bit</span><span class="arr">→</span><span class="step">數位（增益/DPC）</span><span class="arr">→</span><span class="step">MIPI TX 2-lane</span></div>
+<h2>2.4 OV5647 內部方塊圖</h2>
+<div class="pipe"><span class="step">Pixel Array 2592×1944</span><span class="arr">→</span><span class="step">Column ADC（10-bit）</span><span class="arr">→</span><span class="step">數位處理（增益/DPC）</span><span class="arr">→</span><span class="step">MIPI TX（2-lane）</span></div>
+<p>周邊區塊：<strong>Timing Generator</strong>（列/幀同步）、<strong>PLL</strong>（由 XCLK 產生內部時脈）、<strong>I2C 介面</strong>（register 控制）、<strong>上電管理</strong>（PWDN/RESET）。</p>
+
+<h2>2.5 OV5647 完整規格表（公開 datasheet）</h2>
 <table class="reg-table">
 <tr><th>項目</th><th>規格</th><th>工程意義</th></tr>
-<tr><td>解析度</td><td>2592×1944</td><td>—</td></tr>
-<tr><td>像素</td><td>1.4 µm</td><td>滿阱與感光</td></tr>
-<tr><td>光學格式</td><td>1/4"</td><td>鏡頭匹配</td></tr>
+<tr><td>解析度</td><td>2592×1944</td><td>全解析輸出</td></tr>
+<tr><td>像素尺寸</td><td>1.4 µm</td><td>決定感光面積與滿阱</td></tr>
+<tr><td>光學格式</td><td>1/4"</td><td>鏡頭像圈匹配</td></tr>
+<tr><td>快門</td><td>Rolling</td><td>—</td></tr>
 <tr><td>ADC</td><td>10-bit</td><td>RAW 位元深</td></tr>
-<tr><td>SNR max</td><td>~36 dB</td><td>低光性能</td></tr>
+<tr><td>SNR max</td><td>~36 dB</td><td>低光性能指標</td></tr>
 <tr><td>動態範圍</td><td>~68 dB</td><td>—</td></tr>
-<tr><td>類比增益</td><td>2×</td><td>+ 數位增益</td></tr>
-<tr><td>MIPI</td><td>2-lane</td><td>RPi5 接法</td></tr>
-<tr><td>I2C</td><td>0x36</td><td>單元 3</td></tr>
-<tr><td>XCLK</td><td>6–27 MHz（典型 24）</td><td>單元 6</td></tr>
+<tr><td>類比增益</td><td>2× 內建</td><td>可再數位延伸</td></tr>
+<tr><td>MIPI</td><td>2-lane CSI-2</td><td>RPi5 接法</td></tr>
+<tr><td>I2C 位址</td><td>0x36（7-bit）</td><td>單元 3 實作</td></tr>
+<tr><td>XCLK</td><td>6–27 MHz（典型 24）</td><td>單元 6 PLL</td></tr>
 </table>
-<div class="callout"><strong>「RAW 天花板」：</strong>雜訊底、動態範圍、色彩響應在感測器層定型；ISP 只能逼近。調校極限由此定。</div>
+<div class="callout"><strong>「RAW 天花板」原則：</strong>雜訊底、動態範圍、色彩靈敏度都在感測器層定型。ISP 只能「校正逼近」，不能「無中生有」。調校的極限由此決定——理解它，才知道「調不上去」是感測器問題還是流程問題。</div>
 
 
   <div class="outcome">
     <strong>看完這單元你應該能說出：</strong>
-    <ul><li>光電物理與 SNR 數學。</li><li>Bayer 與 Gr/Gb 差異。</li><li>Rolling 流水線與 banding。</li><li>OV5647 完整規格。</li></ul>
+    <ul><li>光電轉換數學與「加曝光優於加增益」。</li><li>Bayer 物理、Gr/Gb 差異、demosaic 需求。</li><li>Rolling 流水線與 banding 成因。</li><li>OV5647 內部方塊與完整規格。</li></ul>
   </div>
 
   <h2>延伸閱讀</h2>
