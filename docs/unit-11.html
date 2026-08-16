@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>單元 11 · 白平衡與色彩（AWB / CCM） · Raspberry Pi 5 感測器影像調適繁中教學站</title>
-<meta name="description" content="gains、CCM 實作">
+<meta name="description" content="gains、灰卡校正、CCM 實作">
 <link rel="icon" type="image/svg+xml" href="../assets/favicon.svg">
 <link rel="stylesheet" href="../assets/site.css">
 </head>
@@ -13,7 +13,7 @@
 
 <header>
   <h1>單元 11 · 白平衡與色彩（AWB / CCM）</h1>
-  <p class="subtitle">gains、CCM 實作</p>
+  <p class="subtitle">gains、灰卡校正、CCM 實作</p>
 </header>
 
 <nav class="topnav">  <a href="../index.html">首頁</a>
@@ -26,45 +26,58 @@
 <div class="back-link"><a href="index.html">← 單元教學</a></div>
 
 <div class="guide">
-<h2>11.1 AWB 原理</h2>
-<div class="pipe"><span class="step">場景色溫（3000K）</span><span class="arr">→</span><span class="step">R/G/B gains</span><span class="arr">→</span><span class="step">白回白</span></div>
+<h2>11.1 AWB 原理：把白校正回白</h2>
+<div class="pipe"><span class="step">場景色溫（如 3000K 黃光）</span><span class="arr">→</span><span class="step">R/G/B gains</span><span class="arr">→</span><span class="step">白回白</span></div>
+<p>人眼會適應色溫，感測器不會。AWB 演算法算出一組 gains，讓中性色（灰/白）在中性。</p>
 <ul>
-<li><strong>Grey world</strong>：假設場景平均灰 → RGB 平均相等。</li>
-<li>libcamera <strong>Awb 演算法</strong>依 ISP 統計自動算。</li>
+<li><strong>Grey world</strong>：假設場景平均是灰 → 調到 RGB 平均相等。</li>
+<li><strong>libcamera Awb 演算法</strong>：依 ISP 統計（灰點偵測）自動算 gains，比 grey world 穩。</li>
 </ul>
 
-<h2>11.2 灰卡校正標準程序</h2>
+<h2>11.2 灰卡校正標準程序（實作）</h2>
 <ol>
-<li>拍灰卡（固定光源/曝光）。</li>
-<li>關 AWB，手動調 gains 直到灰卡 R=G=B。</li>
-<li>記錄該色溫 gains → 建色溫→gains 表。</li>
+<li>放灰卡（18% 灰卡或積分球），固定光源與曝光。</li>
+<li>關 AWB，手動調 RedGain/BlueGain。</li>
+<li>拍到灰卡 R=G=B（直方圖中心接近）為止。</li>
+<li>記錄該光源的色溫 → gains 對。</li>
 </ol>
 <div class="demo-block"><div class="demo-label">picamera2 手動白平衡</div><pre>picam2.set_controls({
     "AwbEnable": False,
     "ColourTemperature": 4500,
-    "RedGain": 1.6, "BlueGain": 1.2,
+    "RedGain": 1.6,     <span class="hl-c"># 先設中性 1.0 再逐步調整</span>
+    "BlueGain": 1.2,
 })</pre></div>
+<div class="callout warn"><strong>調適陷阱：</strong>固定色溫時，若 gains 與色溫不匹配，白會偏黃/偏藍——用灰卡校正最準，不要靠「看起來」。</div>
 
 <h2>11.3 CCM：色彩校正矩陣</h2>
-<p>感測器色彩響應不完美，用 3×3 矩陣校正到標準色彩空間；分色溫兩套。</p>
-<div class="demo-block"><div class="demo-label">CCM 示意</div><pre>{ {1.6, -0.3, -0.3},
+<p>感測器的色彩響應不完美（濾鏡串擾、響應曲線偏移），用 <strong>3×3 矩陣</strong>校正到標準色彩空間（sRGB/Rec.709）。<strong>分色溫</strong>兩套（低色溫/高色溫）因為感測器響應隨光譜不同。</p>
+<div class="demo-block"><div class="demo-label">CCM 示意（對角>1，副對角負）</div><pre>{ {1.6, -0.3, -0.3},
   {-0.2,  1.4, -0.2},
   {-0.1, -0.3,  1.4} }</pre></div>
-<div class="callout warn"><strong>陷阱：</strong>CCM 過頭 → 過飽和/色階斷裂；gains 與 CCM 一起看。</div>
+<div class="callout warn"><strong>陷阱：</strong>CCM 過頭 → 過飽和、色階斷裂（banding）；gains 與 CCM 互相影響，要一起看。先 AWB 中性，再 CCM 定色。</div>
 
-<h2>11.4 用色卡算 CCM（量化）</h2>
+<h2>11.4 用色卡量化算 CCM</h2>
 <ol>
-<li>拍 X-Rite 色卡（固定光源/曝光）。</li>
-<li>讀色塊 RGB（RAW 經中性 AWB）。</li>
-<li>對目標值算最小化 ΔE 的 3×3。</li>
-<li>寫入 tuning 檔（單元 14）。</li>
-<li>不同色溫重複 → 分段 CCM。</li>
+<li>拍 <strong>X-Rite 24 色卡</strong>（固定光源/曝光）。</li>
+<li>讀每色塊 RGB（RAW 經中性 AWB）。</li>
+<li>對色卡目標值（已知 sRGB 值）算最小化 ΔE 的 3×3。</li>
+<li>寫入 tuning 檔 ColourMatrix 區塊（單元 14）。</li>
+<li>不同色溫重複 → 建立分段 CCM。</li>
 </ol>
+<div class="demo-block"><div class="demo-label">量化驗證：ΔE</div><pre><span class="hl-c"># 用 deltaE2000 比較校正前後與目標色卡的色差</span>
+<span class="hl-c"># 目標：平均 ΔE < 3（工業常用門檻）</span></pre></div>
+
+<h2>11.5 色彩調校紀律</h2>
+<ul>
+<li>先 AWB 中性（灰卡），再 CCM 定色（色卡）。</li>
+<li>每次只改一個區塊，重新測量 ΔE。</li>
+<li>分段色溫各測一次，確保無色溫突變。</li>
+</ul>
 
 
   <div class="outcome">
     <strong>看完這單元你應該能說出：</strong>
-    <ul><li>AWB 原理與 gains。</li><li>灰卡校正程序。</li><li>CCM 與分色溫。</li><li>色卡算 CCM。</li></ul>
+    <ul><li>AWB 原理與 gains 角色。</li><li>灰卡校正標準程序。</li><li>CCM 與分色溫。</li><li>色卡量化算 CCM（ΔE）。</li><li>色彩調校紀律。</li></ul>
   </div>
 
   <h2>延伸閱讀</h2>

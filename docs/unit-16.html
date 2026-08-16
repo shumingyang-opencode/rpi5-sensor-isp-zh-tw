@@ -27,43 +27,44 @@
 
 <div class="guide">
 <h2>16.1 多相機</h2>
-<p>RPi5 兩組 CSI 可同時跑兩顆；libcamera 以多 Camera 呈現。</p>
-<div class="demo-block"><div class="demo-label">列出所有相機</div><pre>rpicam-hello --list-cameras</pre></div>
+<p>RPi5 兩組 CSI 可同時跑兩顆；libcamera 以多 Camera 呈現，各自獨立控制。</p>
+<div class="demo-block"><div class="demo-label">列出所有相機</div><pre>rpicam-hello --list-cameras   <span class="hl-c"># 0: ov5647(1)  1: ov5647(0) 等</span></pre></div>
 
-<h2>16.2 客製 OV 感測器接入（四步）</h2>
+<h2>16.2 客製 OV 感測器接入（四步，含細節）</h2>
 <ol>
-<li>硬體：CSI 2-lane、I2C、reset/clock GPIO 對齊 15-pin。</li>
-<li>DT overlay：宣告 I2C、clocks、reset-gpios、port{csi-lane=2}。</li>
-<li>驅動：drivers/media/i2c 有對應。</li>
-<li>出圖→調校：先 RAW 確認，再黑位/LSC/色彩。</li>
+<li><strong>硬體</strong>：CSI 2-lane、I2C、reset/clock GPIO 對齊 15-pin。</li>
+<li><strong>DT overlay</strong>：宣告 I2C 位址、clocks、reset-gpios、port{csi-lane=2}。</li>
+<li><strong>驅動</strong>：<code>drivers/media/i2c/</code> 有對應驅動（ov5647/5640/9281）。</li>
+<li><strong>出圖 → 調校</strong>：先 RAW 確認，再做黑位/LSC/色彩（本課全套流程）。</li>
 </ol>
-<div class="callout warn"><strong>NDA 提醒：</strong>完整 register 表常需 NDA；本站只用公開資料。</div>
+<div class="callout warn"><strong>NDA 提醒：</strong>完整 register 表常需 NDA；本站只用<strong>公開可查</strong> register。正式開發以 OVT 官方文件為準。</div>
 
-<h2>16.3 完整案例：調校一顆 OV5647</h2>
+<h2>16.3 完整案例：調校一顆 OV5647（七步）</h2>
 <div class="pipe"><span class="step">接板+overlay</span><span class="arr">→</span><span class="step">出圖</span><span class="arr">→</span><span class="step">RAW 檢查</span><span class="arr">→</span><span class="step">黑位/LSC</span><span class="arr">→</span><span class="step">AWB/CCM</span><span class="arr">→</span><span class="step">NR/Sharpen</span><span class="arr">→</span><span class="step">回歸</span></div>
 <ol>
-<li>list-cameras 確認偵測。</li>
-<li>--raw 出圖 + 存 DNG。</li>
-<li>解析 RAW：Bayer、黑位、缺陷像素。</li>
-<li>灰卡校正黑位與 LSC。</li>
-<li>色卡校正 AWB 與 CCM。</li>
-<li>實景微調 NR↔Sharpen。</li>
-<li>室內/日光/逆光回歸。</li>
+<li><code>rpicam-hello --list-cameras</code> 確認偵測。</li>
+<li><code>rpicam-still --raw -o t.dng</code> 出圖 + 存 DNG。</li>
+<li>解析 RAW：Bayer order、黑位、缺陷像素（單元 7/8）。</li>
+<li>灰卡校正黑位與 LSC（單元 7/12）。</li>
+<li>色卡校正 AWB 與 CCM（單元 11）。</li>
+<li>實景微調 NR ↔ Sharpen（單元 13/14）。</li>
+<li>室內/日光/逆光回歸（單元 14）。</li>
 </ol>
 
-<h2>16.4 最佳實踐</h2>
+<h2>16.4 最佳實踐總清單</h2>
 <ul>
-<li>固定測試場景，量化比較（σ、ΔE、直方圖）。</li>
-<li>一次只改一個參數。</li>
+<li>固定測試場景與光源，量化比較（σ、ΔE、直方圖、暗角比）。</li>
+<li>一次只改一個參數，記錄前後圖與參數。</li>
 <li>先 RAW 後 ISP，先校正後美化。</li>
-<li>記錄每次改動與前後圖。</li>
+<li>每個 tuning 改動都做回歸，確認無副作用。</li>
+<li>所有測試條件寫進文件，供日後重現。</li>
 </ul>
-<div class="callout"><strong>課程完成：</strong>你已能獨立完成一顆 OV 感測器的初始化、串流與調校。</div>
+<div class="callout"><strong>課程完成：</strong>你已具備從感測器初始化、串流到完整調校的能力，可獨立處理一顆 OV 感測器。</div>
 
 
   <div class="outcome">
     <strong>看完這單元你應該能說出：</strong>
-    <ul><li>多相機操作。</li><li>客製 OV 四步。</li><li>完整調校案例。</li><li>最佳實踐。</li></ul>
+    <ul><li>RPi5 多相機操作。</li><li>客製 OV 接入四步。</li><li>完整調校案例七步。</li><li>調校最佳實踐。</li></ul>
   </div>
 
   <h2>延伸閱讀</h2>

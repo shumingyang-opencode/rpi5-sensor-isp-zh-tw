@@ -27,60 +27,89 @@
 
 <div class="guide">
 <h2>5.1 啟用相機</h2>
-<div class="demo-block"><div class="demo-label">raspi-config</div><pre>$ sudo raspi-config
-  Interface Options → Camera → Enable
+<div class="demo-block"><div class="demo-label">raspi-config（RPi OS）</div><pre>$ sudo raspi-config
+  選單：Interface Options → Camera → Enable → Finish
 $ sudo reboot</pre></div>
+<p class="hint">RPi5 的 Raspberry Pi OS 預設已啟用相機；此步驟為保險。Bookworm 後的 libcamera 不需要「camera=1」舊設定。</p>
 
-<h2>5.2 確認偵測（含輸出解讀）</h2>
-<div class="demo-block"><div class="demo-label">list-cameras</div><pre>$ rpicam-hello --list-cameras
+<h2>5.2 確認偵測（含輸出逐欄解讀）</h2>
+<div class="demo-block"><div class="demo-label">rpicam-hello --list-cameras</div><pre>$ rpicam-hello --list-cameras
+Available cameras
+-----------------
 0 : ov5647 [2592x1944 10-bit RGGB]
     Modes: 'SGBRG10_CSI2P' : 640x480 1296x972 1296x730 2592x1944
            'YUV420_8_CSI2P' : 640x480 1296x972 1296x730 2592x1944</pre></div>
-<p class="hint">libcamera 顯示 SGBRG10（CSI 層排列）；OV5647 實際 RGGB——轉換在單元 8 講。</p>
-
-<h2>5.3 預覽 / 拍照 / 錄影（關鍵旗標）</h2>
-<div class="demo-block"><div class="demo-label">主指令</div><pre>rpicam-hello -t 10000              <span class="hl-c"># 預覽 10s</span>
-rpicam-still -o shot.jpg
-rpicam-still --raw -o shot.dng     <span class="hl-c"># 同時輸出 DNG（調校關鍵）</span>
-rpicam-vid -t 5000 -o video.h264</pre></div>
 <table>
-<tr><th>旗標</th><th>作用</th></tr>
-<tr><td><code>-t</code></td><td>持續 ms</td></tr>
-<tr><td><code>--raw</code></td><td>額外輸出 DNG</td></tr>
-<tr><td><code>--shutter/--gain/--awb</code></td><td>固定參數（調校用）</td></tr>
-<tr><td><code>--info</code></td><td>印控制與統計</td></tr>
+<tr><th>欄位</th><th>意義</th></tr>
+<tr><td><code>0 :</code></td><td>相機索引（多顆時依序編號）</td></tr>
+<tr><td><code>ov5647</code></td><td>感測器名稱（來自 DT compatible）</td></tr>
+<tr><td><code>2592x1944 10-bit RGGB</code></td><td>最大解析度 / RAW 位元深 / Bayer order</td></tr>
+<tr><td><code>Modes:</code></td><td>可用串流模式與解析度</td></tr>
 </table>
-<div class="callout"><strong>RAW 的意義：</strong>DNG 是 Bayer RAW。品質分析（黑位、雜訊、色彩）回 RAW。習慣：<code>rpicam-still --raw -o t.dng</code>。</div>
+<div class="callout warn"><strong>order 迷思（先記住）：</strong>這裡顯示 <code>SGBRG10_CSI2P</code> 是<strong>CSI 傳輸層</strong>的 fourcc；OV5647 實際是 <strong>RGGB</strong>。驅動在內核層做了 order 轉換。你手動解析 RAW 時以 <strong>RGGB</strong> 為準（單元 8 驗證）。</div>
 
-<h2>5.4 調校用固定參數拍照</h2>
-<div class="demo-block"><div class="demo-label">固定曝光/增益/AWB</div><pre>rpicam-still --raw -o fixed.dng     --shutter 20000 --gain 1.0 --awb off --awbgains 1.0,1.0</pre></div>
+<h2>5.3 預覽 / 拍照 / 錄影（關鍵旗標全表）</h2>
+<div class="demo-block"><div class="demo-label">基本三指令</div><pre>rpicam-hello -t 10000              <span class="hl-c"># 預覽 10 秒</span>
+rpicam-still -o shot.jpg           <span class="hl-c"># 拍照</span>
+rpicam-vid  -t 5000 -o video.h264  <span class="hl-c"># 錄 5 秒 H.264</span></pre></div>
+<table>
+<tr><th>旗標</th><th>作用</th><th>調校常用</th></tr>
+<tr><td><code>-t</code></td><td>持續時間 ms</td><td>—</td></tr>
+<tr><td><code>-o</code></td><td>輸出檔</td><td>—</td></tr>
+<tr><td><code>--width/--height</code></td><td>輸出解析度</td><td>固定測試解析度</td></tr>
+<tr><td><code>--shutter</code></td><td>固定快門 µs</td><td>✅ 固定曝光</td></tr>
+<tr><td><code>--gain</code></td><td>固定增益</td><td>✅ 固定增益</td></tr>
+<tr><td><code>--awb off --awbgains r,b</code></td><td>關 AWB 並手動 gains</td><td>✅ 中性色彩</td></tr>
+<tr><td><code>--raw</code></td><td>額外輸出 RAW（DNG）</td><td>✅ 調校必用</td></tr>
+<tr><td><code>--info</code></td><td>印出控制與統計</td><td>✅ 觀察 AE</td></tr>
+</table>
+<div class="callout"><strong>RAW 的意義（再次強調）：</strong>DNG = Bayer RAW 封裝。所有品質分析（黑位、雜訊、色彩、Bayer order）都必須回到 RAW——ISP 處理過就「回不去」。養成習慣：<code>rpicam-still --raw -o t.dng</code>。</div>
 
-<h2>5.5 picamera2 完整程式</h2>
+<h2>5.4 調校用「固定參數」拍照（範本）</h2>
+<div class="demo-block"><div class="demo-label">固定曝光/增益/AWB 拍 RAW</div><pre>rpicam-still --raw -o fixed.dng     --shutter 20000 --gain 1.0     --awb off --awbgains 1.0,1.0</pre></div>
+<p class="hint">固定參數的目的是「重現同一個畫面」：不同時間拍的 RAW 才有可比性（單元 14 回歸用）。</p>
+
+<h2>5.5 觀察 AE 狀態（調校前置）</h2>
+<div class="demo-block"><div class="demo-label">--info 輸出節錄</div><pre>$ rpicam-still --info -o /dev/null
+...
+ExposureTime: 33333
+AnalogueGain: 1.5
+ColourGains: [1.7, 1.3]
+...</pre></div>
+<p class="hint">這告訴你「自動模式下感測器目前的曝光/增益/AWB gains」——是理解場景曝光需求的依據。</p>
+
+<h2>5.6 picamera2 完整程式</h2>
 <div class="demo-block"><div class="demo-label">控制曝光/AWB 拍照</div><pre>from picamera2 import Picamera2
+
 picam2 = Picamera2()
 cfg = picam2.create_still_configuration()
 picam2.configure(cfg)
+
 picam2.set_controls({
-    "AeEnable": False, "ExposureTime": 20000, "AnalogueGain": 1.5,
-    "AwbEnable": False, "ColourTemperature": 4500,
+    "AeEnable": False,           <span class="hl-c"># 關自動曝光</span>
+    "ExposureTime": 20000,       <span class="hl-c"># 快門 µs</span>
+    "AnalogueGain": 1.5,
+    "AwbEnable": False,          <span class="hl-c"># 關自動白平衡</span>
+    "ColourTemperature": 4500,   <span class="hl-c"># 手動色溫</span>
 })
 picam2.start()
 picam2.capture_file("shot.jpg")
 picam2.stop()</pre></div>
 
-<h2>5.6 常見失敗對照</h2>
+<h2>5.7 常見失敗快速對照</h2>
 <table>
 <tr><th>症狀</th><th>方向</th><th>詳見</th></tr>
-<tr><td>list-cameras 空</td><td>overlay/排線/dmesg</td><td>1/6</td></tr>
-<tr><td>預覽全黑</td><td>曝光 0/AE/鏡頭蓋</td><td>10</td></tr>
-<tr><td>banding</td><td>曝光 vs 50/60Hz</td><td>10</td></tr>
-<tr><td>色彩全錯</td><td>Bayer/AWB</td><td>8/11</td></tr>
+<tr><td>list-cameras 空</td><td>overlay / 排線 / dmesg</td><td>單元 1/6</td></tr>
+<tr><td>預覽全黑</td><td>曝光 0？AE 沒跑？鏡頭蓋？</td><td>單元 10</td></tr>
+<tr><td>明暗條紋（banding）</td><td>曝光與 50/60Hz 不同步</td><td>單元 10</td></tr>
+<tr><td>色彩全錯</td><td>Bayer order / AWB 未校正</td><td>單元 8/11</td></tr>
+<tr><td>預覽卡頓/掉幀</td><td>解析度過高、HDMI 預覽慢</td><td>降解析度</td></tr>
 </table>
 
 
   <div class="outcome">
     <strong>看完這單元你應該能說出：</strong>
-    <ul><li>啟用並讀懂 list-cameras。</li><li>rpicam-apps 旗標。</li><li>--raw 取 DNG。</li><li>picamera2 控制拍照。</li><li>常見失敗對照。</li></ul>
+    <ul><li>啟用相機並逐欄讀懂 list-cameras。</li><li>rpicam-apps 旗標全表與調校用法。</li><li>固定參數拍 RAW 的意義與範本。</li><li>用 --info 觀察 AE 狀態。</li><li>picamera2 控制曝光/AWB。</li></ul>
   </div>
 
   <h2>延伸閱讀</h2>
