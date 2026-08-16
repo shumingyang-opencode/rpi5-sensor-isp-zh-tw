@@ -66,6 +66,46 @@ EOF</pre></div>
 <tr><td>網格邊界不連續</td><td>網格節點過疏、需加密</td></tr>
 </table>
 
+<h2>12.6 LSC 網格檔結構（libcamera meshes）</h2>
+<div class="demo-block"><div class="demo-label">LensShading 區塊（概念）</div><pre>{ "LensShading": {
+    "meshes": [
+      { "size": [17, 13],          <span class="hl-c"># 網格維度</span>
+        "type": "sector",          <span class="hl-c"># 資料型態</span>
+        "reference": [...],        <span class="hl-c"># 參考網格</span>
+        "r": [...], "gr": [...], "gb": [...], "b": [...] }
+    ] } }</pre></div>
+<ul>
+<li>每個節點存 <strong>R/Gr/Gb/B</strong> 四個增益。</li>
+<li><code>reference</code> 是理想均勻網格；實際增益為測量值。</li>
+<li>不同解析度需不同網格（binning 改變 shading 特性）。</li>
+</ul>
+
+<h2>12.7 手動算 LSC 增益圖（無工具時）</h2>
+<div class="demo-block"><div class="demo-label">從均勻灰 RAW 推算</div><pre>python3 - <<'EOF'
+import rawpy, numpy as np
+raw = rawpy.imread('lsc.dng').raw_image.astype(float)
+h, w = raw.shape
+# 以中心為基準，算每一格對中心的比例 → 倒數為增益
+center = raw[h//2 - 50:h//2+50, w//2-50:w//2+50].mean()
+grid = 13
+gh, gw = h//grid, w//grid
+print('增益圖（中心=1，四周>1）:')
+for gy in range(grid):
+    row = []
+    for gx in range(grid):
+        cell = raw[gy*gh:(gy+1)*gh, gx*gw:(gx+1)*gw].mean()
+        row.append(f'{center/cell:.2f}')
+    print(' '.join(row))
+EOF</pre></div>
+<div class="callout"><strong>注意：</strong>手算增益圖要<strong>分通道</strong>（R/Gr/Gb/B 各自），且需對「純灰卡」才準——這只是理解用；量產請用工具校正。</div>
+
+<h2>12.8 LSC 與鏡頭更換的驗證</h2>
+<ol>
+<li>換鏡頭後，重拍均勻灰，量測四角/中心暗角比（單元 12.4）。</li>
+<li>暗角比變化 >5% → 必須重新校正 LSC。</li>
+<li>同鏡頭不同光圈/焦距（若變焦）→ shading 曲線不同 → 各拍一組。</li>
+</ol>
+
 
   <div class="outcome">
     <strong>看完這單元你應該能說出：</strong>

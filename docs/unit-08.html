@@ -74,6 +74,38 @@ EOF</pre></div>
 <li>之後的 LSC/CCM/NR 校正都以這份「乾淨 RAW」為輸入。</li>
 </ol>
 
+<h2>8.6 DNG 檔結構（RAW 封裝）</h2>
+<p>DNG 是 Adobe 的 RAW 封裝（TIFF 基底）。調校時透過 rawpy/dcraw 讀，但理解結構有助除錯：</p>
+<table>
+<tr><th>DNG 欄位</th><th>意義</th></tr>
+<tr><td><code>CFAPattern / raw_pattern</code></td><td>Bayer order（驗證用）</td></tr>
+<tr><td><code>BlackLevel</code></td><td>各通道黑位</td></tr>
+<tr><td><code>WhiteLevel</code></td><td>飽和值（10-bit → 1023）</td></tr>
+<tr><td><code>AsShotNeutral</code></td><td>AWB gains</td></tr>
+<tr><td><code>ColorMatrix</code></td><td>色彩矩陣</td></tr>
+</table>
+<div class="demo-block"><div class="demo-label">用 rawpy 讀 metadata</div><pre>python3 - <<'EOF'
+import rawpy
+raw = rawpy.imread('t.dng')
+print('Bayer pattern:', raw.raw_pattern)          <span class="hl-c"># 驗證 order</span>
+print('BlackLevel:', raw.black_level_per_channel)
+print('WhiteLevel:', raw.white_level)
+EOF</pre></div>
+
+<h2>8.7 常見 RAW 格式錯誤</h2>
+<table>
+<tr><th>錯誤</th><th>症狀</th><th>檢查</th></tr>
+<tr><td>Bayer order 錯</td><td>色彩全亂</td><td>raw_pattern + 純色卡</td></tr>
+<tr><td>bit depth 錯讀</td><td>暗部階調斷裂/過曝</td><td>white_level 是否 1023</td></tr>
+<tr><td>ROI 錯</td><td>影像偏移/錯位</td><td>width/height 與 mode 一致</td></tr>
+<tr><td>packing 錯（10-bit 當 8-bit）</td><td>條紋狀假影</td><td>用支援 10-bit 的解碼器</td></tr>
+</table>
+
+<h2>8.8 多模式 RAW 的一致性（調校前必修）</h2>
+<div class="callout warn"><strong>重要：</strong>同一顆感測器在不同解析度（2592 vs 1296）的 <strong>Bayer order 與 binning 行為不同</strong>。調校與回歸必須<strong>鎖定單一模式</strong>，否則 LSC 網格、CCM 在不同 size 下會不一致。</div>
+<div class="demo-block"><div class="demo-label">列出模式並鎖定</div><pre>rpicam-hello --list-cameras          <span class="hl-c"># 記錄要調校的 mode</span>
+rpicam-still --width 2592 --height 1944 --raw -o full.dng   <span class="hl-c"># 固定全解析</span></pre></div>
+
 
   <div class="outcome">
     <strong>看完這單元你應該能說出：</strong>

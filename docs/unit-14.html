@@ -81,6 +81,26 @@
 <tr><td>低光</td><td>雜訊、增益上限、AE</td></tr>
 </table>
 
+<h2>14.6 RPi5 HDR 模式詳解</h2>
+<p>RPi5 的 HDR 是<strong>多幀合成</strong>：快速連續拍不同曝光（如短/中/長），合成高動態範圍。</p>
+<table>
+<tr><th>項目</th><th>說明</th></tr>
+<tr><td>啟用</td><td><code>dtoverlay=...hdr</code> 或 libcamera HDR 模式</td></tr>
+<tr><td>缺點</td><td>移動景物會 ghosting；幀率下降</td></tr>
+<tr><td>適用</td><td>靜態/慢速場景的高動態需求</td></tr>
+</table>
+<div class="callout warn"><strong>工程取捨：</strong>HDR ≠ 萬能。運動場景用單幀 + tone mapping；靜態高動態才用多幀 HDR。先量測場景的動態範圍需求（亮部/暗部是否同時爆掉），再決定。</div>
+
+<h2>14.7 每次改動的記錄範本</h2>
+<div class="demo-block"><div class="demo-label">tuning 改動 log</div><pre>日期: 2026-08-16
+場景: 室內日光燈 4000K
+改動: Denoise strength 0.3 → 0.5
+原因: 低光平坦區雜訊過明顯
+結果: 平坦區 σ 下降 20%；細節區對比仍可接受
+回歸: 日光場景未見明顯副作用 ✓
+附圖: tuning_20260816_v3.jpg</pre></div>
+<div class="callout"><strong>紀律：</strong>可重現的調校 = 完整的 log。半年後你才能回答「這參數為什麼是 0.5」。</div>
+
 
   <div class="outcome">
     <strong>看完這單元你應該能說出：</strong>

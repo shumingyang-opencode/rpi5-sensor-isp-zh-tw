@@ -79,6 +79,30 @@ EOF</pre></div>
 <li>找到「平坦區乾淨、細節區不糊」的平衡點。</li>
 </ol>
 
+<h2>13.6 雜訊預算（Worked Example）</h2>
+<div class="demo-block"><div class="demo-label">判斷「該補光還是接受雜訊」</div><pre><span class="hl-c"># 假設：目標 SNR >= 30dB（σ/S 比值 < 3.2%）</span>
+<span class="hl-c"># 量測：gain=8 時 σ=20, 訊號=400</span>
+SNR = 20 * log10(400/20) = 26 dB   <span class="hl-c"># 低於目標</span>
+
+<span class="hl-c"># 選項 A：曝光加倍（真實訊號）→ 訊號 800, σ≈28 → SNR 29 dB</span>
+<span class="hl-c"># 選項 B：改回 gain=4（σ 較小）但補光 → 訊號 800, σ≈18 → SNR 33 dB ✓</span>
+<span class="hl-c"># 結論：補光 + 降增益 優於 硬拉增益</span></pre></div>
+<div class="callout"><strong>工程判斷：</strong>用「SNR 預算」量化——先定可接受的 SNR，再決定「曝光/增益/補光」組合。這比「看起來乾淨」可重現。</div>
+
+<h2>13.7 DPC 與 NR 的順序</h2>
+<ul>
+<li><strong>DPC 先</strong>：修掉缺陷像素（否則 NR 會把亮點「擴散」成亮斑）。</li>
+<li><strong>NR 後</strong>：處理統計性雜訊。</li>
+<li>確認 DPC 生效：黑框 RAW 的 max 應被壓制到合理範圍。</li>
+</ul>
+<div class="demo-block"><div class="demo-label">DPC 前後對比</div><pre>python3 - <<'EOF'
+import rawpy, numpy as np
+for name in ['before.dng','after.dng']:
+    raw = rawpy.imread(name).raw_image
+    hot = (raw > raw.mean() + 10*raw.std()).sum()
+    print(name, 'hot pixels:', hot, 'max:', raw.max())
+EOF</pre></div>
+
 
   <div class="outcome">
     <strong>看完這單元你應該能說出：</strong>

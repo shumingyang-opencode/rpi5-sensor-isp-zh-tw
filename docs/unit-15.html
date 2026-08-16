@@ -51,6 +51,26 @@
 <li><strong>次世代機器人</strong> → Thor T5000（HSB 乙太網路感測器）。</li>
 </ul>
 
+<h2>15.4 對同一顆 OV 感測器的操作差異</h2>
+<p>用 OV5640/OV9281 在四個平台，實務差異在哪：</p>
+<table>
+<tr><th>面向</th><th>RPi5</th><th>Orange Pi</th><th>Orin Nano</th><th>Thor</th></tr>
+<tr><td>感測器控制介面</td><td>libcamera controls</td><td>V4L2 subdev controls</td><td>tegracam / Argus</td><td>tegracam / Holoscan</td></tr>
+<tr><td>曝光設定</td><td>ExposureTime(µs)</td><td>exposure(驅動單位)</td><td>SensorMode exp_time</td><td>SensorMode</td></tr>
+<tr><td>白平衡</td><td>ColourGains</td><td>red/blue_balance</td><td>Argus AWB</td><td>Argus AWB</td></tr>
+<tr><td>RAW 取得</td><td>rpicam-still --raw</td><td>v4l2-ctl + 自行解</td><td>argus raw</td><td>argus/Holoscan</td></tr>
+<tr><td>LSC</td><td>tuning json</td><td>後處理</td><td>NVIDIA 工具</td><td>NVIDIA 工具</td></tr>
+</table>
+<div class="callout"><strong>核心領悟：</strong>四平台做的是<strong>同一件事</strong>（控制曝光/白平衡、取 RAW、校正 LSC）——只是<strong>介面不同</strong>。本課在 RPi5 建立的「原理 + 流程」100% 可平移。學會的是一套，換的是工具。</div>
+
+<h2>15.5 感測器 register 層的共通性</h2>
+<p>無論平台，OV 感測器的 register 是<strong>相同</strong>的（0x300A ID、0x3500 曝光、0x350A 增益）——平台差異只在「誰幫你寫」。這正是「先懂 register、再懂平台」的價值。</p>
+<div class="demo-block"><div class="demo-label">四平台讀同一個 register</div><pre><span class="hl-c"># 都是 OV5640/OV9281 的 ID register 0x300A</span>
+RPi5:      i2ctransfer -y 22 w2@0x36 0x30 0x0a r1
+Orange Pi: i2ctransfer -y 3  w2@0x3c 0x30 0x0a r1
+Orin/Thor: i2ctransfer -y 0  w2@0x36 0x30 0x0a r1
+<span class="hl-c"># 差別只在匯流排編號與位址，register 相同</span></pre></div>
+
 
   <div class="outcome">
     <strong>看完這單元你應該能說出：</strong>
