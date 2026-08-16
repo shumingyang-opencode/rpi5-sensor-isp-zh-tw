@@ -27,16 +27,16 @@
 <div class="guide">
 <h2>14.1 清晰度與對比</h2>
 <ul>
-<li><strong>Sharpen</strong>：強化邊緣；過度 → 光暈（halo）+ 放大雜訊。</li>
+<li><strong>Sharpen</strong>：強化邊緣；過度 → 光暈 + 放大雜訊。</li>
 <li><strong>Contrast/Gamma</strong>：對比曲線。</li>
-<li>調校陷阱：NR 與 Sharpen 要<strong>成對</strong>調適。</li>
+<li>NR 與 Sharpen 要<strong>成對</strong>調適。</li>
 </ul>
 
 <h2>14.2 動態範圍與 HDR</h2>
 <ul>
 <li>RPi5 支援 <strong>HDR 相機模式</strong>（多幀合成）。</li>
 <li>啟用：<code>dtoverlay=...hdr</code> + libcamera HDR 模式。</li>
-<li><strong>tone mapping</strong>：高動態壓回輸出範圍，決定亮暗部細節去留。</li>
+<li><strong>tone mapping</strong>：高動態壓回輸出範圍。</li>
 </ul>
 
 <h2>14.3 libcamera tuning 檔完整解析</h2>
@@ -51,35 +51,35 @@
   ] }</pre></div>
 <table>
 <tr><th>區塊</th><th>作用</th><th>對應單元</th></tr>
-<tr><td>Awb</td><td>白平衡演算法設定</td><td>11</td></tr>
+<tr><td>Awb</td><td>白平衡演算法</td><td>11</td></tr>
 <tr><td>BlackLevel</td><td>黑位 offset</td><td>7</td></tr>
 <tr><td>ColourMatrix</td><td>CCM</td><td>11</td></tr>
 <tr><td>Denoise</td><td>降噪</td><td>13</td></tr>
 <tr><td>LensShading</td><td>LSC 網格</td><td>12</td></tr>
 <tr><td>Contrast</td><td>對比/gamma</td><td>14</td></tr>
 </table>
-<p class="hint">改檔後重啟程式生效。備份原檔再改。</p>
+<p class="hint">改檔後重啟程式生效。備份原檔。</p>
 
-<h2>14.4 完整調校工作流（照做）</h2>
+<h2>14.4 完整調校工作流</h2>
 <ol>
-<li><strong>準備</strong>：灰卡、色卡、均勻光源、固定曝光。</li>
-<li><strong>校正順序</strong>：黑位 → LSC → AWB/CCM → 曝光基準。</li>
-<li><strong>動態</strong>：AE/AWB convergence 與範圍。</li>
-<li><strong>美化</strong>：NR ↔ Sharpen 平衡、色彩喜好。</li>
-<li><strong>回歸</strong>：室內/日光/逆光跑一輪。</li>
+<li>準備：灰卡、色卡、均勻光源、固定曝光。</li>
+<li>校正順序：黑位→LSC→AWB/CCM→曝光基準。</li>
+<li>動態：AE/AWB convergence 與範圍。</li>
+<li>美化：NR↔Sharpen、色彩喜好。</li>
+<li>回歸：室內/日光/逆光。</li>
 </ol>
-<div class="callout"><strong>核心紀律：</strong>一次只改一個參數、記錄前後、統一場景比較。</div>
+<div class="callout"><strong>紀律：</strong>一次只改一個參數、記錄前後、統一場景比較。</div>
 
 
   <div class="outcome">
     <strong>看完這單元你應該能說出：</strong>
-    <ul><li>Sharpen/Contrast 與成對原則。</li><li>RPi5 HDR 與 tone mapping。</li><li>tuning 檔各 algorithm 區塊對應。</li><li>五步工作流與紀律。</li></ul>
+    <ul><li>Sharpen/Contrast 成對。</li><li>RPi5 HDR。</li><li>tuning 檔逐區塊。</li><li>五步工作流。</li></ul>
   </div>
 
   <h2>延伸閱讀</h2>
   <ul>
-    <li>下一篇：<a href="unit-15.html">單元 15 · 四平台影像調校比較</a>。</li>
-<li><a href="https://www.raspberrypi.com/documentation/computers/camera_software.html#tuning" rel="noopener">RPi Camera Tuning 指南</a></li>
+    <li>下一篇：<a href="unit-15.html">單元 15 · 四平台比較</a>。</li>
+<li><a href="https://www.raspberrypi.com/documentation/computers/camera_software.html#tuning" rel="noopener">RPi Camera Tuning</a></li>
     <li><a href="../learning-path.html">學習路線</a>：複習全站</li>
   </ul>
 

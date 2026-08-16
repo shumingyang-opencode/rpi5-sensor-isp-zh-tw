@@ -29,30 +29,30 @@
 <table>
 <tr><th>層</th><th>做什麼</th><th>可視性</th></tr>
 <tr><td>感測器內</td><td>黑位、DPC、基礎增益</td><td>register</td></tr>
-<tr><td>平台 ISP（RPi）</td><td>demosaic/NR/CCM/gamma 完整管線</td><td>libcamera tuning</td></tr>
+<tr><td>平台 ISP（RPi）</td><td>demosaic/NR/CCM/gamma</td><td>libcamera tuning</td></tr>
 </table>
-<div class="callout"><strong>調適關鍵：</strong>OV5647 大部分校正走<strong>平台 ISP</strong>——這讓 RPi 比「靠感測器內建」的 Orange Pi 有更大調校空間。</div>
+<div class="callout"><strong>調適關鍵：</strong>OV5647 大部分校正走平台 ISP → RPi 比「靠感測器內建」的 Orange Pi 有更大調校空間。</div>
 
 <h2>9.2 四平台概覽</h2>
 <table>
 <tr><th>平台</th><th>ISP</th><th>調校介面</th><th>可視性</th></tr>
-<tr><td><strong>RPi5</strong></td><td>SoC 硬體 ISP</td><td>libcamera tuning .json</td><td>高（開源）</td></tr>
-<tr><td>Orange Pi</td><td>感測器內建為主</td><td>V4L2 controls</td><td>高（陽春）</td></tr>
-<tr><td>Orin Nano</td><td>NVIDIA ISP</td><td>Argus / NVIDIA</td><td>低（封閉）</td></tr>
-<tr><td>Thor T5000</td><td>Blackwell + Holoscan</td><td>Holoscan</td><td>低（新）</td></tr>
+<tr><td><strong>RPi5</strong></td><td>SoC 硬體 ISP</td><td>libcamera .json</td><td>高（開源）</td></tr>
+<tr><td>Orange Pi</td><td>感測器內建</td><td>V4L2 controls</td><td>高（陽春）</td></tr>
+<tr><td>Orin Nano</td><td>NVIDIA ISP</td><td>Argus/NVIDIA</td><td>低（封閉）</td></tr>
+<tr><td>Thor T5000</td><td>Blackwell+Holoscan</td><td>Holoscan</td><td>低（新）</td></tr>
 </table>
-<div class="callout info"><strong>觀念：</strong>「調校能力」= 可調參數數量 × 工具鏈完整度。RPi5 開源所以看得見；NVIDIA 自動化強但黑箱。</div>
+<div class="callout info"><strong>觀念：</strong>調校能力 = 可調參數 × 工具鏈完整度。RPi5 開源看得見；NVIDIA 自動化強但黑箱。</div>
 
 
   <div class="outcome">
     <strong>看完這單元你應該能說出：</strong>
-    <ul><li>感測器端 vs 平台 ISP 分工。</li><li>四平台 ISP 與調校介面。</li><li>「校正發生在哪一層」的重要性。</li><li>開源 vs 閉源的可視性。</li></ul>
+    <ul><li>感測器端 vs 平台 ISP。</li><li>四平台調校介面。</li><li>「校正在哪一層」重要。</li><li>開源 vs 閉源。</li></ul>
   </div>
 
   <h2>延伸閱讀</h2>
   <ul>
     <li>下一篇：<a href="unit-10.html">單元 10 · 曝光與自動曝光</a>。</li>
-<li><a href="https://libcamera.org/docs.html" rel="noopener">libcamera 文件</a></li>
+<li><a href="https://libcamera.org/docs.html" rel="noopener">libcamera</a></li>
     <li><a href="../learning-path.html">學習路線</a>：複習全站</li>
   </ul>
 

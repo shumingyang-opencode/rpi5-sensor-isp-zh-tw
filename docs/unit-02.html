@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>單元 2 · 影像感測器基礎 · Raspberry Pi 5 感測器影像調適繁中教學站</title>
-<meta name="description" content="光電轉換、Bayer、快門、感測器內部架構">
+<meta name="description" content="光電物理、Bayer、快門、OV5647 內部">
 <link rel="icon" type="image/svg+xml" href="../assets/favicon.svg">
 <link rel="stylesheet" href="../assets/site.css">
 </head>
@@ -13,7 +13,7 @@
 
 <header>
   <h1>單元 2 · 影像感測器基礎</h1>
-  <p class="subtitle">光電轉換、Bayer、快門、感測器內部架構</p>
+  <p class="subtitle">光電物理、Bayer、快門、OV5647 內部</p>
 </header>
 
 <nav class="topnav">  <a href="../index.html">首頁</a>
@@ -25,16 +25,17 @@
 <div class="back-link"><a href="index.html">← 單元教學</a></div>
 
 <div class="guide">
-<h2>2.1 光電轉換的物理</h2>
-<div class="pipe"><span class="step">光子</span><span class="arr">→</span><span class="step">photodiode（p-n 接面）</span><span class="arr">→</span><span class="step">累積電荷 Q ∝ 光強 × 曝光時間</span><span class="arr">→</span><span class="step">電荷→電壓</span><span class="arr">→</span><span class="step">ADC</span><span class="arr">→</span><span class="step">數位 RAW</span></div>
+<h2>2.1 光電轉換的物理模型</h2>
+<div class="pipe"><span class="step">光子</span><span class="arr">→</span><span class="step">photodiode</span><span class="arr">→</span><span class="step">累積電荷 Q = η·P·Texp</span><span class="arr">→</span><span class="step">電荷→電壓（SF 源極隨耦器）</span><span class="arr">→</span><span class="step">ADC</span><span class="arr">→</span><span class="step">RAW</span></div>
 <ul>
-<li><strong>曝光時間</strong>：控制 photodiode 累積電荷的時間（shutter）。</li>
-<li><strong>類比增益</strong>：放大電荷轉電壓後、ADC 前的訊號。</li>
-<li><strong>滿阱（full well）</strong>：單像素最大電荷量，決定動態範圍上限。</li>
+<li><strong>η（量子效率）</strong>：光子→電子轉換率，依波長。</li>
+<li><strong>P</strong>：入射光功率。</li>
+<li><strong>Texp</strong>：曝光時間。</li>
+<li><strong>滿阱（full well）</strong>：單像素最大電荷 → 決定動態範圍。</li>
 </ul>
-<div class="callout"><strong>關鍵數學：</strong>訊號 = 光強 × 曝光 × 量子效率；雜訊 σ = √(訊號)（shot noise）。這決定「加曝光比加增益划算」——因為 shot noise 隨訊號平方根增長，增益是「等比放大雜訊」。</div>
+<div class="callout"><strong>關鍵數學：</strong>shot noise σ = √N（N=訊號電子數）。訊號增 4 倍，σ 只增 2 倍 → <strong>SNR 隨訊號增。</strong>這解釋「加曝光優於加增益」：增益把訊號與雜訊等量放大，SNR 不變；曝光增加的是「真正的訊號」。</div>
 
-<h2>2.2 Bayer CFA 完整解析</h2>
+<h2>2.2 Bayer CFA 的物理意義</h2>
 <table class="reg-table">
 <tr><td class="val">R</td><td class="val">Gr</td><td class="val">R</td><td class="val">Gr</td></tr>
 <tr><td class="val">Gb</td><td class="val">B</td><td class="val">Gb</td><td class="val">B</td></tr>
@@ -42,42 +43,42 @@
 <tr><td class="val">Gb</td><td class="val">B</td><td class="val">Gb</td><td class="val">B</td></tr>
 </table>
 <ul>
-<li>2×2 單元含 1R+2G+1B → 每個像素只存單色。</li>
-<li><strong>Gr/Gb</strong>：同一列（Gr）與同一行（Gb）的綠色通道，理論相同；實際因製造與 crosstalk 會有微小差異——這是 ISP 需要「Gr/Gb 平衡」校正的原因。</li>
-<li>OV5647 = <strong>RGGB</strong> 起點。設錯 → 色彩全錯（單元 8 教你驗證）。</li>
+<li>單像素只有單色：2×2 = 1R+2G+1B。</li>
+<li><strong>Gr/Gb 差異</strong>：Gr（列向 R）與 Gb（行向 B）因製造/crosstalk 有細微差 → ISP 需 Gr/Gb 平衡校正。</li>
+<li><strong>demosaic</strong>：用鄰近像素插值重建全彩（單元 7）。</li>
 </ul>
+<div class="callout warn"><strong>Bayer order 後果：</strong>OV5647=RGGB。若平台以錯誤 order 解讀 → 色彩全錯。單元 8 教你驗證。</div>
 
-<h2>2.3 Rolling 與 Global Shutter 的時序</h2>
-<p><strong>Rolling</strong>：像素逐列曝光→逐列讀出（流水線），存在「曝光行時間差」→ 高速物體扭曲、與光源頻率不同步會 banding。</p>
+<h2>2.3 快門時序：Rolling 的流水線</h2>
+<p><strong>Rolling</strong>：逐列「曝光→讀出」，曝光與讀出<strong>流水線重疊</strong>。row 之間有時間差 → 快速移動物體扭曲。</p>
 <table>
-<tr><th>型態</th><th>曝光時序</th><th>OV5647</th><th>典型問題</th></tr>
-<tr><td><strong>Rolling</strong></td><td>逐列曝光+讀出（row time 重疊）</td><td>✅</td><td>扭曲 / banding</td></tr>
-<tr><td><strong>Global</strong></td><td>全像素同時曝光→同時讀出</td><td>—</td><td>電路複雜、成本高</td></tr>
+<tr><th>型態</th><th>時序</th><th>OV5647</th><th>問題</th></tr>
+<tr><td>Rolling</td><td>逐列曝光+讀出</td><td>✅</td><td>扭曲、banding</td></tr>
+<tr><td>Global</td><td>全像素同時曝光</td><td>—</td><td>電路複雜</td></tr>
 </table>
-<p class="hint">banding 成因與 50/60Hz 的關係在單元 10 深入。</p>
+<p class="hint">banding：曝光時間非電源頻率整數倍 → 亮暗條紋（單元 10 深入）。</p>
 
-<h2>2.4 OV5647 內部架構與完整規格</h2>
-<div class="pipe"><span class="step">Pixel Array 2592×1944</span><span class="arr">→</span><span class="step">Column ADC（10-bit）</span><span class="arr">→</span><span class="step">數位處理（增益/DPC）</span><span class="arr">→</span><span class="step">MIPI TX（2-lane）</span></div>
+<h2>2.4 OV5647 內部方塊與完整規格</h2>
+<div class="pipe"><span class="step">Pixel Array 2592×1944</span><span class="arr">→</span><span class="step">Column ADC 10-bit</span><span class="arr">→</span><span class="step">數位（增益/DPC）</span><span class="arr">→</span><span class="step">MIPI TX 2-lane</span></div>
 <table class="reg-table">
 <tr><th>項目</th><th>規格</th><th>工程意義</th></tr>
-<tr><td>解析度</td><td>2592×1944（5 MP）</td><td>—</td></tr>
-<tr><td>像素尺寸</td><td>1.4 µm</td><td>決定感光與滿阱</td></tr>
+<tr><td>解析度</td><td>2592×1944</td><td>—</td></tr>
+<tr><td>像素</td><td>1.4 µm</td><td>滿阱與感光</td></tr>
 <tr><td>光學格式</td><td>1/4"</td><td>鏡頭匹配</td></tr>
-<tr><td>快門</td><td>Rolling</td><td>—</td></tr>
-<tr><td>ADC</td><td>10-bit</td><td>RAW 位元深（單元 8）</td></tr>
+<tr><td>ADC</td><td>10-bit</td><td>RAW 位元深</td></tr>
 <tr><td>SNR max</td><td>~36 dB</td><td>低光性能</td></tr>
 <tr><td>動態範圍</td><td>~68 dB</td><td>—</td></tr>
-<tr><td>類比增益</td><td>2×（內建）</td><td>+ 數位增益延伸</td></tr>
-<tr><td>MIPI</td><td>2-lane CSI-2</td><td>RPi5 接法</td></tr>
-<tr><td>I2C</td><td>0x36（7-bit）</td><td>單元 3 實作</td></tr>
-<tr><td>XCLK</td><td>6–27 MHz（典型 24）</td><td>單元 6 PLL</td></tr>
+<tr><td>類比增益</td><td>2×</td><td>+ 數位增益</td></tr>
+<tr><td>MIPI</td><td>2-lane</td><td>RPi5 接法</td></tr>
+<tr><td>I2C</td><td>0x36</td><td>單元 3</td></tr>
+<tr><td>XCLK</td><td>6–27 MHz（典型 24）</td><td>單元 6</td></tr>
 </table>
-<div class="callout warn"><strong>「RAW 天花板」原則：</strong>感測器層決定雜訊底、動態範圍、色彩靈敏度。ISP 只能逼近，不能超越。調校極限由此定。</div>
+<div class="callout"><strong>「RAW 天花板」：</strong>雜訊底、動態範圍、色彩響應在感測器層定型；ISP 只能逼近。調校極限由此定。</div>
 
 
   <div class="outcome">
     <strong>看完這單元你應該能說出：</strong>
-    <ul><li>光電轉換物理與「加曝光優於加增益」。</li><li>Bayer RGGB 與 Gr/Gb 平衡的必要性。</li><li>Rolling/Global 時序與 banding。</li><li>OV5647 完整規格與工程意義。</li></ul>
+    <ul><li>光電物理與 SNR 數學。</li><li>Bayer 與 Gr/Gb 差異。</li><li>Rolling 流水線與 banding。</li><li>OV5647 完整規格。</li></ul>
   </div>
 
   <h2>延伸閱讀</h2>

@@ -25,84 +25,87 @@
 <div class="back-link"><a href="index.html">← 單元教學</a></div>
 
 <div class="guide">
-<h2>3.1 I2C 協定位元級回顧</h2>
-<p>I2C（Inter-Integrated Circuit）兩線：<strong>SDA</strong>（資料）+ <strong>SCL</strong>（時脈），開集極 + 上拉電阻。</p>
+<h2>3.1 I2C 協定位元級</h2>
+<p>I2C：<strong>SDA</strong>+<strong>SCL</strong>，開集極+上拉。所有訊號以「位元」逐次傳輸：</p>
 <table>
-<tr><th>訊號</th><th>規則</th></tr>
-<tr><td>START</td><td>SCL 高時 SDA 由高→低</td></tr>
-<tr><td>STOP</td><td>SCL 高時 SDA 由低→高</td></tr>
-<tr><td>ACK</td><td>接收方在每 byte 後把 SDA 拉低 1 bit</td></tr>
-<tr><td>資料有效</td><td>SDA 在 SCL 高電平期間必須穩定</td></tr>
+<tr><th>事件</th><th>電氣條件</th></tr>
+<tr><td>START</td><td>SCL=H 時 SDA H→L</td></tr>
+<tr><td>STOP</td><td>SCL=H 時 SDA L→H</td></tr>
+<tr><td>ACK</td><td>接收方每 byte 後拉低 SDA 一 bit</td></tr>
+<tr><td>NACK</td><td>接收方不拉低 → 傳送方結束</td></tr>
+<tr><td>資料有效</td><td>SDA 在 SCL=H 期間穩定</td></tr>
 </table>
-<p><strong>OV5647 的寫入序列（16-bit register 位址）：</strong></p>
-<div class="pipe"><span class="step">START</span><span class="arr">→</span><span class="step">0x36<<1 | 0（寫）</span><span class="arr">→</span><span class="step">位址高 byte</span><span class="arr">→</span><span class="step">位址低 byte</span><span class="arr">→</span><span class="step">資料</span><span class="arr">→</span><span class="step">STOP</span></div>
-<div class="callout"><strong>位元組序：</strong>OV 用<strong>高 byte 在前</strong>（big-endian）。例：register 0x300A → 先送 0x30 再送 0x0A。</div>
+<p><strong>OV5647 寫入序列（16-bit 位址，big-endian）：</strong></p>
+<div class="pipe"><span class="step">START</span><span class="arr">→</span><span class="step">0x36<<1|0（寫）</span><span class="arr">→</span><span class="step">0x30</span><span class="arr">→</span><span class="step">0x0A</span><span class="arr">→</span><span class="step">data</span><span class="arr">→</span><span class="step">STOP</span></div>
+<div class="callout"><strong>位元組序陷阱：</strong>OV 用<strong>高 byte 在前</strong>。讀 register 0x300A → 先送 0x30 再送 0x0A。用錯序 = 讀到錯誤 register。</div>
 
-<h2>3.2 實作：掃描與讀 ID（第一優先驗證）</h2>
-<div class="demo-block"><div class="demo-label">i2cdetect（Camera 0 = i2c-22）</div><pre>$ sudo i2cdetect -y 22
+<h2>3.2 實作一：掃描匯流排（含預期輸出）</h2>
+<div class="demo-block"><div class="demo-label">i2cdetect -y 22（Camera 0）</div><pre>$ sudo i2cdetect -y 22
      0  1  2  3  4  5  6  7  8  9  a  b  c  d  e  f
-30:                   36                        --   <span class="hl-c">← 0x36 有回應</span>
-</pre></div>
-<div class="demo-block"><div class="demo-label">讀感測器 ID</div><pre>$ sudo i2cget -y 22 0x36 0x300a
+30:                   36                        --</pre></div>
+<p class="hint">看到 0x36 → 感測器回應。全空 → 電源/clock/reset/位址/匯流排問題。</p>
+
+<h2>3.3 實作二：讀感測器 ID（bring-up 第一驗證）</h2>
+<div class="demo-block"><div class="demo-label">讀 0x300A / 0x300B</div><pre>$ sudo i2cget -y 22 0x36 0x300a
 0x56
 $ sudo i2cget -y 22 0x36 0x300b
 0x47
-<span class="hl-c"># 組合 = 0x5647 → OV5647 ✓</span></pre></div>
-<table>
-<tr><th>Register</th><th>內容</th><th>意義</th></tr>
-<tr><td class="reg">0x300A</td><td class="val">0x56</td><td>感測器型號高位（'V'）</td></tr>
-<tr><td class="reg">0x300B</td><td class="val">0x47</td><td>感測器型號低位（OV5647）</td></tr>
+<span class="hl-c"># 0x5647 = OV5647 ✓</span></pre></div>
+<table class="reg-table">
+<tr><th>Register</th><th>值</th><th>意義</th></tr>
+<tr><td class="reg">0x300A</td><td class="val">0x56</td><td>型號高位（'V'）</td></tr>
+<tr><td class="reg">0x300B</td><td class="val">0x47</td><td>型號低位（5647）</td></tr>
 </table>
-<div class="callout"><strong>讀不到 0x5647？</strong>順序檢查：電源 → XCLK → RESET → I2C 位址（含 8-bit 轉換）→ 匯流排編號。完整決策樹在單元 6。</div>
+<div class="callout"><strong>讀不到 0x5647？</strong>順序：電源→XCLK→RESET→位址（7-bit vs 8-bit）→匯流排。決策樹見單元 6。</div>
 
-<h2>3.3 i2ctransfer：16-bit 位址讀寫（含回讀驗證）</h2>
-<div class="demo-block"><div class="demo-label">寫 register 0x3034 = 0x1E</div><pre><span class="hl-c"># w3 = 寫 3 byte：0x30 0x34 0x1e（位址高、位址低、資料）</span>
+<h2>3.4 實作三：i2ctransfer 讀寫（16-bit 位址）</h2>
+<div class="demo-block"><div class="demo-label">寫 0x3034=0x1E 並回讀</div><pre><span class="hl-c"># w3 = 位址高、位址低、資料</span>
 $ sudo i2ctransfer -y 22 w3@0x36 0x30 0x34 0x1e
-<span class="hl-c"># 回讀：w2 送位址，r1 讀 1 byte</span>
+<span class="hl-c"># 回讀：送 2-byte 位址後讀 1 byte</span>
 $ sudo i2ctransfer -y 22 w2@0x36 0x30 0x34 r1
 0x1e</pre></div>
 <table>
-<tr><th>參數</th><th>意義</th></tr>
-<tr><td><code>w3@0x36 0x30 0x34 0x1e</code></td><td>對 0x36 寫 3 byte（0x30 0x34 0x1e）</td></tr>
-<tr><td><code>w2@0x36 0x30 0x34 r1</code></td><td>寫 2 byte 位址後讀 1 byte</td></tr>
+<tr><th>指令</th><th>解釋</th></tr>
+<tr><td><code>w3@0x36 0x30 0x34 0x1e</code></td><td>對 0x36 寫 3 byte</td></tr>
+<tr><td><code>w2@0x36 0x30 0x34 r1</code></td><td>寫 2 byte 位址，讀 1 byte</td></tr>
 </table>
 
-<h2>3.4 OV5647 的 page/bank 機制（重要）</h2>
-<p>OV5647 部分 register 需要先「切換 bank」才能存取：</p>
+<h2>3.5 page/bank 機制（容易踩雷）</h2>
+<p>OV5647 部分 register 須先切 bank：</p>
 <table class="reg-table">
 <tr><th>Register</th><th>角色</th></tr>
 <tr><td class="reg">0x3000</td><td>sccb_bank 控制</td></tr>
 <tr><td class="reg">0x3008[6]</td><td>sccb_slave_id_en</td></tr>
-<tr><td class="reg">0x3100</td><td>sccb_slave_id（切換感測器 id 模式）</td></tr>
+<tr><td class="reg">0x3100</td><td>sccb_slave_id（模式切換）</td></tr>
 </table>
-<div class="callout warn"><strong>陷阱：</strong>某些 OV 感測器（如 OV5640 系列）用 0xFD/0xFE 切 page。OV5647 的 bank 主要透過 0x3000 控制。寫錯 bank 的 register = 寫到「錯誤的位址」而不知。務必以 datasheet 的 register table 為準。</div>
+<div class="callout warn"><strong>陷阱：</strong>OV 某些系列用 0xFD/0xFE 切 page（如 OV5640）；OV5647 以 0x3000 為主。寫錯 bank = 寫到「錯的 register」而不知。以 datasheet register table 為準。</div>
 
-<h2>3.5 關鍵 register 群總表（後續單元引用）</h2>
+<h2>3.6 關鍵 register 群總表（後續單元引用）</h2>
 <table class="reg-table">
 <tr><th>Register</th><th>功能</th><th>單元</th></tr>
-<tr><td class="reg">0x300A/0x300B</td><td>感測器 ID</td><td>本單元 / 6</td></tr>
-<tr><td class="reg">0x3034–0x3037</td><td>PLL / clock 分頻</td><td>6</td></tr>
-<tr><td class="reg">0x3100–0x3103</td><td>時序控制</td><td>6</td></tr>
-<tr><td class="reg">0x3500–0x3503</td><td>曝光時間（AEC）</td><td>10</td></tr>
-<tr><td class="reg">0x350A–0x350B</td><td>類比增益（AGC）</td><td>10</td></tr>
-<tr><td class="reg">0x3800–0x3814</td><td>裁切/解析度（timing）</td><td>8</td></tr>
-<tr><td class="reg">0x3A00–0x3A03</td><td>banding filter（50/60Hz）</td><td>10</td></tr>
-<tr><td class="reg">0x4740–0x4742</td><td>MIPI 介面</td><td>6</td></tr>
+<tr><td class="reg">0x300A/B</td><td>ID</td><td>3/6</td></tr>
+<tr><td class="reg">0x3034–37</td><td>PLL</td><td>6</td></tr>
+<tr><td class="reg">0x3100–03</td><td>時序</td><td>6</td></tr>
+<tr><td class="reg">0x3500–03</td><td>曝光</td><td>10</td></tr>
+<tr><td class="reg">0x350A/B</td><td>增益</td><td>10</td></tr>
+<tr><td class="reg">0x3800–14</td><td>裁切/解析度</td><td>8</td></tr>
+<tr><td class="reg">0x3A00–03</td><td>banding</td><td>10</td></tr>
+<tr><td class="reg">0x4740–42</td><td>MIPI</td><td>6</td></tr>
 </table>
 
-<h2>3.6 安全準則</h2>
-<div class="callout warn"><strong>正式流程走驅動，手動只除錯：</strong>libcamera/驅動會維護 register 一致性。手動 i2ctransfer 適合驗證與理解；寫壞可重上電回復。切勿在 streaming 中亂改 register。</div>
+<h2>3.7 安全準則</h2>
+<div class="callout warn"><strong>正式走驅動，手動只除錯：</strong>libcamera/驅動維護 register 一致性。手動 i2ctransfer 適合驗證；寫壞可重上電回復。streaming 中勿亂改。</div>
 
 
   <div class="outcome">
     <strong>看完這單元你應該能說出：</strong>
-    <ul><li>I2C 協定位元級（START/ACK/16-bit 位址序）。</li><li>用 i2cdetect/i2cget 讀 OV5647 ID。</li><li>用 i2ctransfer 讀寫並回讀驗證。</li><li>OV5647 page/bank 機制與關鍵 register 群。</li></ul>
+    <ul><li>I2C 位元級（START/ACK/16-bit 序）。</li><li>i2cdetect/i2cget 讀 OV5647 ID。</li><li>i2ctransfer 讀寫與回讀。</li><li>page/bank 機制與關鍵 register。</li></ul>
   </div>
 
   <h2>延伸閱讀</h2>
   <ul>
     <li>下一篇：<a href="unit-04.html">單元 4 · 相機框架與驅動</a>。</li>
-<li><a href="https://www.kernel.org/doc/html/latest/i2c/" rel="noopener">Linux I2C 文件</a></li>
+<li><a href="https://www.kernel.org/doc/html/latest/i2c/" rel="noopener">Linux I2C</a></li>
     <li><a href="../learning-path.html">學習路線</a>：複習全站</li>
   </ul>
 

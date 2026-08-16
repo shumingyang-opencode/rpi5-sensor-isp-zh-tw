@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>單元 15 · 四平台影像調校功能比較 · Raspberry Pi 5 感測器影像調適繁中教學站</title>
-<meta name="description" content="RPi5 / Orange Pi / Orin Nano / Thor T5000">
+<meta name="description" content="RPi5 / Orange Pi / Orin / Thor">
 <link rel="icon" type="image/svg+xml" href="../assets/favicon.svg">
 <link rel="stylesheet" href="../assets/site.css">
 </head>
@@ -13,7 +13,7 @@
 
 <header>
   <h1>單元 15 · 四平台影像調校功能比較</h1>
-  <p class="subtitle">RPi5 / Orange Pi / Orin Nano / Thor T5000</p>
+  <p class="subtitle">RPi5 / Orange Pi / Orin / Thor</p>
 </header>
 
 <nav class="topnav">  <a href="../index.html">首頁</a>
@@ -26,40 +26,36 @@
 
 <div class="guide">
 <h2>15.1 比較框架</h2>
-<p>調校能力 = 平台 ISP 提供多少可調參數 × 工具鏈完整度 × 可視性。</p>
+<p>調校能力 = 可調參數 × 工具鏈完整度 × 可視性。</p>
 
 <h2>15.2 四大平台能力總表</h2>
 <table>
 <tr><th>項目</th><th><strong>RPi5</strong></th><th>Orange Pi</th><th>Orin Nano</th><th>Thor T5000</th></tr>
-<tr><td>ISP 形態</td><td>SoC 硬體 ISP</td><td>感測器內建為主</td><td>NVIDIA ISP</td><td>Blackwell + Holoscan</td></tr>
-<tr><td>AE/AWB</td><td>libcamera ✅</td><td>sensor ⚠️</td><td>NVIDIA 自動 ✅✅</td><td>NVIDIA ✅✅</td></tr>
-<tr><td>LSC</td><td>✅ tuning json</td><td>⚠️ 有限</td><td>✅ NVIDIA</td><td>✅ NVIDIA</td></tr>
-<tr><td>NR/Sharpen</td><td>✅ 可調</td><td>⚠️ 後處理</td><td>✅✅</td><td>✅✅</td></tr>
-<tr><td>HDR</td><td>✅ 多幀</td><td>⚠️</td><td>✅</td><td>✅✅</td></tr>
-<tr><td>工具鏈</td><td>開源、看得見</td><td>v4l2-ctl 陽春</td><td>NVIDIA 封閉</td><td>Holoscan 新</td></tr>
-<tr><td>tuning 檔</td><td>libcamera .json</td><td>—</td><td>私有</td><td>私有</td></tr>
-<tr><td>學習性</td><td><strong>最佳</strong></td><td>陽春開放</td><td>強大不透明</td><td>新且高階</td></tr>
+<tr><td>ISP 形態</td><td>SoC 硬體 ISP</td><td>感測器內建</td><td>NVIDIA ISP</td><td>Blackwell+Holoscan</td></tr>
+<tr><td>AE/AWB</td><td>libcamera ✅</td><td>sensor ⚠️</td><td>NVIDIA ✅✅</td><td>NVIDIA ✅✅</td></tr>
+<tr><td>LSC</td><td>✅</td><td>⚠️</td><td>✅</td><td>✅</td></tr>
+<tr><td>NR/Sharpen</td><td>✅</td><td>⚠️</td><td>✅✅</td><td>✅✅</td></tr>
+<tr><td>HDR</td><td>✅</td><td>⚠️</td><td>✅</td><td>✅✅</td></tr>
+<tr><td>工具鏈</td><td>開源</td><td>v4l2-ctl</td><td>NVIDIA 封閉</td><td>Holoscan</td></tr>
+<tr><td>學習性</td><td><strong>最佳</strong></td><td>陽春</td><td>不透明</td><td>新</td></tr>
 </table>
-<div class="callout"><strong>RPi5 定位：</strong>功能不是最強，但「開源 + 文件齊 + 每層看得見」是<strong>最好的學習平台</strong>——學會這裡，NVIDIA 只是換工具。</div>
+<div class="callout"><strong>RPi5 定位：</strong>開源+看得見 = 最佳學習平台。學會這裡，NVIDIA 只是換工具。</div>
 
-<h2>15.3 選型建議</h2>
+<h2>15.3 選型</h2>
 <ul>
-<li><strong>學習/教學</strong> → RPi5。</li>
-<li><strong>簡單專案</strong> → Orange Pi。</li>
-<li><strong>工業/高品質</strong> → Orin Nano。</li>
-<li><strong>次世代機器人</strong> → Thor T5000。</li>
+<li>學習 → RPi5；簡單專案 → Orange Pi；工業 → Orin Nano；次世代 → Thor。</li>
 </ul>
 
 
   <div class="outcome">
     <strong>看完這單元你應該能說出：</strong>
-    <ul><li>四平台 ISP 與調校能力。</li><li>RPi5 學習性優勢。</li><li>工具鏈與 tuning 檔差異。</li><li>依需求選平台。</li></ul>
+    <ul><li>四平台 ISP 能力。</li><li>RPi5 學習性。</li><li>工具鏈差異。</li><li>選型。</li></ul>
   </div>
 
   <h2>延伸閱讀</h2>
   <ul>
-    <li>下一篇：<a href="unit-16.html">單元 16 · 多感測器與實作案例</a>。</li>
-<li>對照站：<a href="https://shumingyang-opencode.github.io/jetson-orin-nano-sensor-isp-zh-tw/" rel="noopener">Orin Nano 站</a></li>
+    <li>下一篇：<a href="unit-16.html">單元 16 · 多感測器與實作</a>。</li>
+<li>對照站：<a href="https://shumingyang-opencode.github.io/jetson-orin-nano-sensor-isp-zh-tw/" rel="noopener">Orin 站</a></li>
     <li><a href="../learning-path.html">學習路線</a>：複習全站</li>
   </ul>
 

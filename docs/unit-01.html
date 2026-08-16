@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>單元 1 · 平台相機生態總覽 · Raspberry Pi 5 感測器影像調適繁中教學站</title>
-<meta name="description" content="CSI-2 硬體、libcamera 堆疊、感測器選擇">
+<meta name="description" content="CSI-2 位元層、libcamera 堆疊、感測器選擇">
 <link rel="icon" type="image/svg+xml" href="../assets/favicon.svg">
 <link rel="stylesheet" href="../assets/site.css">
 </head>
@@ -13,7 +13,7 @@
 
 <header>
   <h1>單元 1 · 平台相機生態總覽</h1>
-  <p class="subtitle">CSI-2 硬體、libcamera 堆疊、感測器選擇</p>
+  <p class="subtitle">CSI-2 位元層、libcamera 堆疊、感測器選擇</p>
 </header>
 
 <nav class="topnav">  <a href="../index.html">首頁</a>
@@ -25,14 +25,28 @@
 <div class="back-link"><a href="index.html">← 單元教學</a></div>
 
 <div class="guide">
-<h2>1.1 CSI-2 實體層</h2>
-<p>MIPI CSI-2（Camera Serial Interface 2）分 <strong>D-PHY 實體層</strong>與 <strong>協定層</strong>。RPi5 使用 D-PHY：</p>
+<h2>1.1 MIPI CSI-2 分層架構</h2>
+<p>MIPI CSI-2 是相機的序列介面標準，分兩層：<strong>D-PHY 實體層</strong>（電氣）與<strong>協定層</strong>（封包）。理解分層，除錯才知道問題在哪一層。</p>
 <table>
-<tr><th>項目</th><th>RPi5 規格</th><th>說明</th></tr>
-<tr><td>連接器</td><td>15-pin × 2（Cam0/Cam1）</td><td>FPC 排線</td></tr>
-<tr><td>Lane</td><td>每連接器 4-lane</td><td>OV5647 用 2-lane</td></tr>
-<tr><td>Data rate</td><td>最高 ~1.5 Gbps/lane</td><td>依感測器</td></tr>
-<tr><td>Clock</td><td>HS clock 由感測器輸出</td><td>DDR：雙沿取樣</td></tr>
+<tr><th>層</th><th>職責</th><th>關鍵參數</th></tr>
+<tr><td>PHY（D-PHY）</td><td>差分訊號、時脈、電氣</td><td>HS/LP 模式、訊號電平</td></tr>
+<tr><td>Lane 管理</td><td>lane 對齊、去歪斜</td><td>lane 數（1/2/4）</td></tr>
+<tr><td>Low Level Protocol</td><td>封包（long/short packet）</td><td>SOF/EOF、ECC/CRC</td></tr>
+<tr><td>應用層</td><td>frame 資料、embedded data</td><td>pixel format、metadata</td></tr>
+</table>
+<p><strong>D-PHY 兩種模式：</strong></p>
+<ul>
+<li><strong>HS（High-Speed）</strong>：傳資料，差動，高速。</li>
+<li><strong>LP（Low-Power）</strong>：傳控制（BTA、reset 等），單端，低速。</li>
+</ul>
+
+<h2>1.2 RPi5 的 CSI-2 硬體</h2>
+<table>
+<tr><th>項目</th><th>規格</th><th>工程意義</th></tr>
+<tr><td>連接器</td><td>15-pin × 2（Cam0/Cam1）</td><td>雙相機</td></tr>
+<tr><td>Lane</td><td>4-lane/連接器</td><td>OV5647 用 2-lane</td></tr>
+<tr><td>Data rate</td><td>最高 ~1.5 Gbps/lane</td><td>決定最大幀率/解析度</td></tr>
+<tr><td>Clock</td><td>DDR（雙沿取樣）</td><td>—</td></tr>
 </table>
 <div class="file-tree">15-pin 連接器腳位（由外而內）
  1  GND         2  GND
@@ -43,48 +57,46 @@
 11  GND        12  MIPI_D3P
 13  MIPI_D3N   14  GND
 15  CAMERA_CLOCK（XCLK）</div>
-<div class="callout warn"><strong>排線檢查（第一優先）：</strong>FPC 金手指方向、插入到底、鎖扣壓緊。約半數「相機沒畫面」源自排線。驗證：<code>dmesg | grep -i -E "unicam|ov5647"</code> 無 error。</div>
+<div class="callout warn"><strong>排線檢查 SOP（第一優先）：</strong>① 金手指方向（朝連接器金屬接點）② 完全插入並鎖扣 ③ 重插後 <code>dmesg | grep -i -E "unicam|ov5647"</code> 無 error。約一半「相機沒畫面」源於排線。</div>
 
-<h2>1.2 libcamera 四層堆疊（每個你操作什麼）</h2>
+<h2>1.3 libcamera 四層堆疊：每一層你操作什麼</h2>
 <div class="pipe"><span class="step">應用：rpicam-apps / picamera2</span><span class="arr">→</span><span class="step">libcamera（管線/控制/tuning）</span><span class="arr">→</span><span class="step">內核：unicam + ov5647.c</span><span class="arr">→</span><span class="step">硬體：感測器 → ISP</span></div>
 <table>
-<tr><th>層</th><th>元件</th><th>你操作什麼</th><th>原始碼位置</th></tr>
-<tr><td>應用</td><td><code>rpicam-still</code>、<code>picamera2</code></td><td>拍照、錄影、控制</td><td>/usr/bin</td></tr>
-<tr><td>框架</td><td><strong>libcamera</strong></td><td>曝光/增益/白平衡控制、載入 tuning</td><td>libcamera.org</td></tr>
-<tr><td>內核</td><td><code>unicam</code> + <code>ov5647.c</code></td><td>CSI 接收、感測器 register</td><td>drivers/media</td></tr>
-<tr><td>硬體</td><td>OV5647 → BCM2712 ISP</td><td>RAW 產出與校正</td><td>—</td></tr>
+<tr><th>層</th><th>元件</th><th>你操作什麼</th><th>原始碼</th></tr>
+<tr><td>應用</td><td><code>rpicam-*</code>、<code>picamera2</code></td><td>拍照、錄影、控制</td><td>/usr/bin</td></tr>
+<tr><td>框架</td><td><strong>libcamera</strong></td><td>曝光/增益/AWB、tuning 檔</td><td>libcamera.org</td></tr>
+<tr><td>內核</td><td><code>unicam</code>+<code>ov5647.c</code></td><td>CSI 接收、感測器 register</td><td>drivers/media</td></tr>
+<tr><td>硬體</td><td>OV5647 → BCM2712 ISP</td><td>RAW 與校正</td><td>—</td></tr>
 </table>
 
-<h2>1.3 感測器板選擇：三個決定性問題</h2>
+<h2>1.4 感測器選擇：三個決定性問題</h2>
 <ol>
-<li><strong>官方還是客製？</strong>官方 Camera Module v1 = OV5647，免寫 overlay。</li>
-<li><strong>接口相容？</strong>15-pin 標準接口、2-lane MIPI。</li>
-<li><strong>驅動支援？</strong>確認 <code>drivers/media/i2c/</code> 有對應驅動（ov5647/ov5640/ov9281 皆有）。</li>
+<li><strong>官方 vs 客製</strong>：官方 Module v1=OV5647，免 overlay。</li>
+<li><strong>接口</strong>：15-pin、2-lane MIPI。</li>
+<li><strong>驅動</strong>：<code>drivers/media/i2c/</code> 有無對應。</li>
 </ol>
 <table>
-<tr><th>OV 感測器</th><th>解析度</th><th>快門</th><th>RPi5 可用性</th></tr>
-<tr><td class="ov">OV5647</td><td>5 MP</td><td>Rolling</td><td>官方 Module v1，文件最齊 ✅</td></tr>
-<tr><td class="ov">OV5640</td><td>5 MP</td><td>Rolling</td><td>驅動支援 ✅</td></tr>
-<tr><td class="ov">OV9281</td><td>1 MP</td><td>Global</td><td>驅動支援 ✅</td></tr>
+<tr><th>感測器</th><th>解析度</th><th>快門</th><th>RPi5</th><th>用途</th></tr>
+<tr><td class="ov">OV5647</td><td>5 MP</td><td>Rolling</td><td>官方 v1 ✅</td><td>本課主例</td></tr>
+<tr><td class="ov">OV5640</td><td>5 MP</td><td>Rolling</td><td>驅動 ✅</td><td>教育板</td></tr>
+<tr><td class="ov">OV9281</td><td>1 MP</td><td>Global</td><td>驅動 ✅</td><td>機器視覺</td></tr>
 </table>
 
-<h2>1.4 本章最小驗收</h2>
-<div class="demo-block"><div class="demo-label">確認介面與 overlay</div><pre># 列出可用的相機 overlay
-sudo dtoverlay -a | grep -E "ov5647|ov9281"
-# 檢查 FPC 後的 CSI 錯誤
+<h2>1.5 本章最小驗收</h2>
+<div class="demo-block"><div class="demo-label">驗證介面</div><pre>sudo dtoverlay -a | grep -E "ov5647|ov9281"
 dmesg | grep -i -E "unicam|csi|ov5647" | tail -5</pre></div>
-<div class="callout"><strong>通過標準：</strong>dmesg 無 CSI 相關 error；overlay 清單看得到 ov5647。</div>
+<div class="callout"><strong>通過標準：</strong>dmesg 無 CSI error；overlay 清單見 ov5647。</div>
 
 
   <div class="outcome">
     <strong>看完這單元你應該能說出：</strong>
-    <ul><li>CSI-2 D-PHY 位元層與 15-pin 腳位。</li><li>libcamera 四層堆疊與各層操作對象。</li><li>選感測器板的三個決定性問題。</li><li>OV5647/5640/9281 在 RPi5 的可用性。</li></ul>
+    <ul><li>CSI-2 分層與 D-PHY HS/LP。</li><li>RPi5 15-pin 腳位與排線 SOP。</li><li>libcamera 四層與各層操作。</li><li>OV5647/5640/9281 可用性。</li></ul>
   </div>
 
   <h2>延伸閱讀</h2>
   <ul>
     <li>下一篇：<a href="unit-02.html">單元 2 · 影像感測器基礎</a>。</li>
-<li><a href="https://www.raspberrypi.com/documentation/computers/camera_software.html" rel="noopener">RPi 相機軟體文件</a></li>
+<li><a href="https://www.raspberrypi.com/documentation/computers/camera_software.html" rel="noopener">RPi 相機文件</a></li>
     <li><a href="../learning-path.html">學習路線</a>：複習全站</li>
   </ul>
 
