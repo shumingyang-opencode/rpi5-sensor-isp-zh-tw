@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>開發板架設與工具鏈 · Raspberry Pi 5 感測器影像調適繁中教學站</title>
+<meta name="description" content="韌體工程師前置：開發板架設、工具鏈、第一支程式">
+<link rel="icon" type="image/svg+xml" href="assets/favicon.svg">
+<link rel="stylesheet" href="assets/site.css">
+</head>
+<body>
+<div class="container">
+<header><h1>開發板架設與工具鏈</h1>
+<p class="subtitle">韌體工程師的前置工作：把開發板架起來、裝好工具鏈、寫第一支程式</p></header>
+<nav class="topnav">  <a href="index.html">首頁</a>
+  <a href="map.html">概念地圖</a>
+  <a href="learning-path.html">學習路線</a>
+  <a href="docs/index.html">單元教學</a>
+  <a href="board-setup.html">開發板架設</a>
+  <a href="board-versions.html">版本與配件</a>
+  <a href="dev-env.html">開發者環境</a>
+  <a href="about.html">關於</a></nav>
+<div class="back-link"><a href="index.html">← 回首頁</a></div>
+<div class="guide">
+
+  <div class="callout info">
+    <strong>給韌體工程師：</strong>rpi5-sensor-isp-zh-tw 是 Linux 開發板，但在碰感測器之前，你得先完成「板子架設 → 工具鏈 → 第一支程式」這條前置線。本頁是Raspberry Pi 5特有的完整流程——每步給指令與驗證方式。
+  </div>
+
+  <h2>0. 前置流程總覽</h2>
+  <div class="pipe"><span class="step">燒錄 OS</span><span class="arr">→</span><span class="step">首次開機/網路</span><span class="arr">→</span><span class="step">啟用 SSH/I2C</span><span class="arr">→</span><span class="step">裝工具鏈</span><span class="arr">→</span><span class="step">驗證環境</span><span class="arr">→</span><span class="step">第一支 C 程式</span></div>
+
+  <h2>1. 作業系統與首次開機</h2>
+  <p><strong>Raspberry Pi OS（Bookworm 之後，建議 64-bit）</strong>。映像選擇與燒錄方式見「開發者環境」頁（Windows/macOS/Linux 皆有）。</p>
+  <table>
+    <tr><th>項目</th><th>本平台</th></tr>
+    <tr><td>映像</td><td>Raspberry Pi OS Desktop / Lite（用 Raspberry Pi Imager 燒錄）</td></tr>
+    <tr><td>預設使用者</td><td>pi（首次開機設定，或預燒 ssh 檔）</td></tr>
+    <tr><td>首次開機</td><td>接螢幕完成設定；headless 可預先在 boot 分割放 ssh 空檔 + userconf.txt</td></tr>
+    <tr><td>更新</td><td><code>sudo apt update && sudo apt upgrade -y</code></td></tr>
+  </table>
+
+  <h2>2. 啟用必要介面（SSH / I2C / SPI / Serial）</h2>
+  <div class="demo-block"><div class="demo-label">啟用與驗證</div><pre>sudo raspi-config → Interface Options → I2C / SSH / Serial → Enable</pre></div>
+  <p class="hint">Camera 0 對應 i2c-22；Camera 1 對應 i2c-10。啟用 I2C 後需重啟。</p>
+
+  <h2>3. 安裝工具鏈（韌體必備）</h2>
+  <div class="demo-block"><div class="demo-label">安裝</div><pre>sudo apt update && sudo apt install -y build-essential cmake git \
+    i2c-tools v4l-utils python3-pip</pre></div>
+  <table>
+    <tr><th>工具</th><th>用途</th></tr>
+    <tr><td><code>build-essential</code></td><td>gcc / make，編譯 C</td></tr>
+    <tr><td><code>cmake</code></td><td>專案建置系統</td></tr>
+    <tr><td><code>git</code></td><td>版本控制</td></tr>
+    <tr><td><code>i2c-tools</code></td><td>i2cdetect / i2ctransfer</td></tr>
+    <tr><td><code>v4l-utils</code></td><td>v4l2-ctl / media-ctl</td></tr>
+    <tr><td><code>python3-pip</code></td><td>Python 工具</td></tr>
+  </table>
+
+  <h2>4. 驗證環境就緒</h2>
+  <div class="demo-block"><div class="demo-label">五秒驗證</div><pre>sudo i2cdetect -y 22    # 預期看到 0x36（OV5647）</pre></div>
+  <div class="callout"><strong>通過標準：</strong>工具鏈裝好、i2cdetect 看得到感測器位址 → 前置完成，可進單元 3。</div>
+
+  <h2>5. 第一支 C 程式：讀感測器 ID（韌體核心）</h2>
+  <p>韌體工程師的核心技能——用 userspace I2C 直接跟感測器溝通。以下是讀 OV 感測器 ID 的最小程式：</p>
+  <div class="demo-block"><div class="demo-label">read_sensor_id.c</div><pre>#include <stdio.h>
+#include <fcntl.h>
+#include <unistd.h>
+#include <stdint.h>
+#include <sys/ioctl.h>
+#include <linux/i2c-dev.h>
+
+/* 用 userspace I2C 讀感測器 ID（16-bit register，big-endian） */
+int main(int argc, char **argv) {
+    int bus  = (argc > 1) ? atoi(argv[1]) : 22;
+    int addr = 0x36;                       /* OV5647 7-bit 位址 */
+    char path[32]; snprintf(path, sizeof(path), "/dev/i2c-%d", bus);
+    int fd = open(path, O_RDWR);
+    if (fd < 0) { perror("open /dev/i2c"); return 1; }
+    if (ioctl(fd, I2C_SLAVE, addr) < 0) { perror("I2C_SLAVE"); return 1; }
+
+    uint8_t reg[2] = {0x30, 0x0A};            /* ID 高位 register */
+    if (write(fd, reg, 2) != 2) { perror("write"); return 1; }
+    uint8_t hi = 0, lo = 0;
+    if (read(fd, &hi, 1) != 1) { perror("read"); return 1; }
+
+    reg[1] = 0x0B;                            /* ID 低位 register */
+    if (write(fd, reg, 2) != 2) return 1;
+    if (read(fd, &lo, 1) != 1) return 1;
+
+    printf("Sensor ID: 0x%02X%02X\n", hi, lo);
+    close(fd);
+    return 0;
+}</pre></div>
+  <div class="demo-block"><div class="demo-label">編譯與執行</div><pre>gcc -o read_sensor_id read_sensor_id.c && sudo ./read_sensor_id 22</pre></div>
+
+  <h2>6. 交叉編譯與遠端建置</h2>
+  <ul>
+    <li><strong>直接板上編譯</strong>：板上有 gcc，直接把 source 拷過去編（最簡單）。</li>
+    <li><strong>交叉編譯</strong>：在 x86 主機用 <code>aarch64-linux-gnu-gcc</code> 編 ARM 二進位。</li>
+    <li><strong>Remote build</strong>：VS Code Remote-SSH 直接在板上編譯除錯。</li>
+  </ul>
+  <div class="demo-block"><div class="demo-label">交叉編譯範例</div><pre>sudo apt install -y gcc-aarch64-linux-gnu
+aarch64-linux-gnu-gcc -o read_sensor_id read_sensor_id.c
+scp read_sensor_id pi（首次開機設定，或預燒 ssh 檔）@IP:/home/pi（首次開機設定，或預燒 ssh 檔）/</pre></div>
+
+  <h2>7. 從原始碼建置（進階）</h2>
+  <p>libcamera / ov5647 驅動從原始碼建置：git clone + meson/ninja（進階，正式開發才需要）。</p>
+
+  <h2>8. 常用除錯工具</h2>
+  <table>
+    <tr><th>工具</th><th>用途</th></tr>
+    <tr><td><code>dmesg</code></td><td>內核訊息（probe/CSI 錯誤）</td></tr>
+    <tr><td><code>strace</code></td><td>追蹤 syscall（I2C 讀寫行為）</td></tr>
+    <tr><td><code>i2cdump</code></td><td>dump 感測器 register</td></tr>
+    <tr><td><code>perf</code></td><td>效能分析</td></tr>
+  </table>
+
+  <div class="outcome">
+    <strong>看完這頁你應該能說出：</strong>
+    <ul>
+      <li>本平台的 OS 映像、使用者與首次開機流程。</li>
+      <li>啟用 SSH/I2C 的方式與 I2C 匯流排編號。</li>
+      <li>韌體必備工具鏈清單。</li>
+      <li>用 userspace C 程式讀感測器 register。</li>
+      <li>直接編譯 vs 交叉編譯的取捨。</li>
+    </ul>
+  </div>
+
+  <h2>延伸閱讀</h2>
+  <ul>
+    <li>回到<a href="index.html">課程總覽</a> · <a href="dev-env.html">開發者環境（Win/mac/Linux）</a></li>
+  </ul>
+
+</div>
+<footer>這是 Raspberry Pi 5 感測器影像調適繁中教學站 · 由 OpenCode 建置<br>
+  <span class="footer-license">本站教學內容（繁體中文解說）為本站原創，採 CC-BY-4.0；register 與指令引用自 <a href="https://www.raspberrypi.com/documentation/" rel="noopener">Raspberry Pi 官方文件</a>、<a href="https://libcamera.org/" rel="noopener">libcamera</a> 與公開感測器資料（OV5647 公開 datasheet）。</span></footer>
+</div></body></html>

@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>版本與配件 · Raspberry Pi 5 感測器影像調適繁中教學站</title>
+<meta name="description" content="開發板子版本、配件與適用開發">
+<link rel="icon" type="image/svg+xml" href="assets/favicon.svg">
+<link rel="stylesheet" href="assets/site.css">
+</head>
+<body>
+<div class="container">
+<header><h1>版本與配件</h1>
+<p class="subtitle">子版本差異、功能配件、適合的開發應用</p></header>
+<nav class="topnav">  <a href="index.html">首頁</a>
+  <a href="map.html">概念地圖</a>
+  <a href="learning-path.html">學習路線</a>
+  <a href="docs/index.html">單元教學</a>
+  <a href="board-setup.html">開發板架設</a>
+  <a href="board-versions.html">版本與配件</a>
+  <a href="dev-env.html">開發者環境</a>
+  <a href="about.html">關於</a></nav>
+<div class="back-link"><a href="index.html">← 回首頁</a></div>
+<div class="guide">
+
+  <div class="callout info">
+    <strong>為什麼要懂子版本：</strong>Raspberry Pi 5 有不同 RAM 版本與多款官方相機配件，功能與適用開發差異明顯。選對版本才能避開「買錯板卡」的坑。
+  </div>
+
+  <h2>子版本比較</h2>
+  <table>
+    <tr><th>版本</th><th>SoC</th><th>RAM</th><th>關鍵 I/O</th><th>適合開發</th></tr>
+    <tr><td><strong>Raspberry Pi 5（2GB）</strong></td><td>BCM2712 4×A76</td><td>2GB</td><td>同 RPi5 全 I/O</td><td>輕量嵌入式、無頭伺服、教學入門</td></tr><tr><td><strong>Raspberry Pi 5（4GB）</strong></td><td>BCM2712 4×A76</td><td>4GB</td><td>雙 4-lane CSI、雙 4K 顯示、PCIe 2.0、40-pin</td><td>一般用途、影像處理</td></tr><tr><td><strong>Raspberry Pi 5（8GB）</strong></td><td>BCM2712 4×A76</td><td>8GB</td><td>同上</td><td>AI 推論、多任務、影像調校開發</td></tr><tr><td><strong>Raspberry Pi 5（16GB）</strong></td><td>BCM2712 4×A76</td><td>16GB</td><td>同上</td><td>大模型、多執行緒、密集運算</td></tr>
+  </table>
+
+  <h2>配件與外設</h2>
+  <table>
+    <tr><th>配件</th><th>說明 / 用途</th></tr>
+    <tr><td><strong>Camera Module 1（OV5647）</strong></td><td>本站主例；5MP 官方相機，文件最齊</td></tr><tr><td><strong>Camera Module 3（IMX708）</strong></td><td>12MP、AF 對焦、HDR</td></tr><tr><td><strong>HQ Camera（IMX477）</strong></td><td>高畫質、可換鏡頭</td></tr><tr><td><strong>Global Shutter Camera（OV9281）</strong></td><td>1MP global shutter，機器視覺</td></tr><tr><td><strong>官方 7” 觸控螢幕</strong></td><td>本機 UI 開發</td></tr><tr><td><strong>NVMe HAT</strong></td><td>高速儲存，AI 資料集</td></tr><tr><td><strong>Raspberry Pi Pico（MCU）</strong></td><td>與 RPi5 搭配的即時控制伴侶</td></tr>
+  </table>
+
+  <h2>選擇建議</h2>
+  <ul>
+    <li>影像調校開發首選 8GB：記憶體足夠跑分析工具與多執行緒。</li><li>僅做 sensor bring-up 驗證，4GB 已足夠。</li><li>相機配件以「和你的感測器/鏡頭」相容為前提再選。</li><li>若需 GMSL 多感測器 → 本平台不支援，請看 Jetson 站。</li>
+  </ul>
+
+  <div class="outcome">
+    <strong>看完這頁你應該能說出：</strong>
+    <ul>
+      <li>本平台的主要子版本與其差異。</li>
+      <li>各子版本適合的開發應用。</li>
+      <li>關鍵配件與搭配方式。</li>
+      <li>依需求選擇版本的判斷依據。</li>
+    </ul>
+  </div>
+
+  <h2>延伸閱讀</h2>
+  <ul>
+    <li>回到<a href="index.html">課程總覽</a></li>
+  </ul>
+
+</div>
+<footer>這是 Raspberry Pi 5 感測器影像調適繁中教學站 · 由 OpenCode 建置<br>
+  <span class="footer-license">本站教學內容（繁體中文解說）為本站原創，採 CC-BY-4.0；register 與指令引用自 <a href="https://www.raspberrypi.com/documentation/" rel="noopener">Raspberry Pi 官方文件</a>、<a href="https://libcamera.org/" rel="noopener">libcamera</a> 與公開感測器資料（OV5647 公開 datasheet）。</span></footer>
+</div></body></html>
