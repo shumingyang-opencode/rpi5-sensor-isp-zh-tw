@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>單元教學 · Raspberry Pi 5 感測器影像調適繁中教學站</title>
+<meta name="description" content="16 單元教學目錄">
+<link rel="icon" type="image/svg+xml" href="../assets/favicon.svg">
+<link rel="stylesheet" href="../assets/site.css">
+</head>
+<body>
+<div class="container">
+<header><h1>單元教學</h1><p class="subtitle">16 個單元，從感測器基礎到影像品質調適</p></header>
+<nav class="topnav">  <a href="../index.html">首頁</a>
+  <a href="../map.html">概念地圖</a>
+  <a href="../learning-path.html">學習路線</a>
+  <a href="../docs/index.html">單元教學</a>
+  <a href="../about.html">關於</a></nav>
+<div class="back-link"><a href="../index.html">← 回首頁</a></div>
+<div class="card-grid">
+  <a class="card lv-emerald" href="unit-01.html">
+    <div class="c-name">單元 1 · 平台相機生態總覽</div>
+    <div class="c-zh">CSI-2、libcamera 堆疊、支援的 OV 感測器。</div>
+    <div class="c-tags"><span class="c-tag">生態</span><span class="c-tag">L0</span></div>
+  </a>
+  <a class="card lv-emerald" href="unit-02.html">
+    <div class="c-name">單元 2 · 影像感測器基礎</div>
+    <div class="c-zh">pixel array、Bayer CFA、快門型態、感測器方塊圖。</div>
+    <div class="c-tags"><span class="c-tag">基礎</span><span class="c-tag">L0</span></div>
+  </a>
+  <a class="card lv-emerald" href="unit-03.html">
+    <div class="c-name">單元 3 · 感測器通訊介面</div>
+    <div class="c-zh">I2C/SCCB、register 讀寫、page switching、讀 sensor ID。</div>
+    <div class="c-tags"><span class="c-tag">通訊</span><span class="c-tag">L0</span></div>
+  </a>
+  <a class="card lv-cyan" href="unit-04.html">
+    <div class="c-name">單元 4 · 平台相機框架與驅動</div>
+    <div class="c-zh">libcamera 架構、unicam 驅動、DT overlay、控制模型。</div>
+    <div class="c-tags"><span class="c-tag">驅動</span><span class="c-tag">L1</span></div>
+  </a>
+  <a class="card lv-cyan" href="unit-05.html">
+    <div class="c-name">單元 5 · 第一個鏡頭跑起來</div>
+    <div class="c-zh">啟用相機、rpicam-apps 拍照/錄影、picamera2。</div>
+    <div class="c-tags"><span class="c-tag">動手做</span><span class="c-tag">L1</span></div>
+  </a>
+  <a class="card lv-cyan" href="unit-06.html">
+    <div class="c-name">單元 6 · Sensor Bring-up 與除錯</div>
+    <div class="c-zh">上電時序、PLL/clock、MIPI link、常見失敗與排解。</div>
+    <div class="c-tags"><span class="c-tag">除錯</span><span class="c-tag">L1</span></div>
+  </a>
+  <a class="card lv-amber" href="unit-07.html">
+    <div class="c-name">單元 7 · ISP 管線深入</div>
+    <div class="c-zh">RAW→ISP 各區塊：黑位、demosaic、LSC、CCM、gamma。</div>
+    <div class="c-tags"><span class="c-tag">ISP</span><span class="c-tag">L2</span></div>
+  </a>
+  <a class="card lv-amber" href="unit-08.html">
+    <div class="c-name">單元 8 · RAW 擷取與資料格式</div>
+    <div class="c-zh">RAW 模式、Bayer format/order、bit depth、ROI。</div>
+    <div class="c-tags"><span class="c-tag">格式</span><span class="c-tag">L2</span></div>
+  </a>
+  <a class="card lv-amber" href="unit-09.html">
+    <div class="c-name">單元 9 · 各平台 ISP 架構差異</div>
+    <div class="c-zh">sensor 內部 ISP vs 平台 ISP，各平台分工。</div>
+    <div class="c-tags"><span class="c-tag">架構</span><span class="c-tag">L2</span></div>
+  </a>
+  <a class="card lv-fuchsia" href="unit-10.html">
+    <div class="c-name">單元 10 · 曝光與自動曝光（AE）</div>
+    <div class="c-zh">曝光三要素、測光模式、AE convergence。</div>
+    <div class="c-tags"><span class="c-tag">調校</span><span class="c-tag">L3</span></div>
+  </a>
+  <a class="card lv-fuchsia" href="unit-11.html">
+    <div class="c-name">單元 11 · 白平衡與色彩（AWB / CCM）</div>
+    <div class="c-zh">AWB、色彩校正矩陣、gamma、色彩調適。</div>
+    <div class="c-tags"><span class="c-tag">調校</span><span class="c-tag">L3</span></div>
+  </a>
+  <a class="card lv-fuchsia" href="unit-12.html">
+    <div class="c-name">單元 12 · 鏡頭陰影校正（LSC）</div>
+    <div class="c-zh">lens shading 成因、LSC 網格、校正參數。</div>
+    <div class="c-tags"><span class="c-tag">調校</span><span class="c-tag">L3</span></div>
+  </a>
+  <a class="card lv-fuchsia" href="unit-13.html">
+    <div class="c-name">單元 13 · 雜訊與降噪</div>
+    <div class="c-zh">sensor 端雜訊 vs ISP 降噪、NR 參數、hot pixel。</div>
+    <div class="c-tags"><span class="c-tag">調校</span><span class="c-tag">L3</span></div>
+  </a>
+  <a class="card lv-fuchsia" href="unit-14.html">
+    <div class="c-name">單元 14 · 清晰度、動態範圍與調校工作流</div>
+    <div class="c-zh">sharpness、HDR、tuning 檔格式與完整調校流程。</div>
+    <div class="c-tags"><span class="c-tag">調校</span><span class="c-tag">L3</span></div>
+  </a>
+  <a class="card lv-violet" href="unit-15.html">
+    <div class="c-name">單元 15 · 四平台影像調校功能比較</div>
+    <div class="c-zh">四平台 ISP 能力、可調參數、工具鏈、tuning 檔比較。</div>
+    <div class="c-tags"><span class="c-tag">比較</span><span class="c-tag">L4</span></div>
+  </a>
+  <a class="card lv-violet" href="unit-16.html">
+    <div class="c-name">單元 16 · 多感測器與實作案例</div>
+    <div class="c-zh">多相機、客製 OV 感測器接入、完整調適案例與最佳實踐。</div>
+    <div class="c-tags"><span class="c-tag">實作</span><span class="c-tag">L4</span></div>
+  </a>
+</div>
+<div class="callout info"><strong>建議路線：</strong>第一次學建議照 <a href="../learning-path.html">學習路線</a> 依序進行；只想看影像調校的讀者可先跳單元 10–14。</div>
+<footer>這是 Raspberry Pi 5 感測器影像調適繁中教學站 · 由 OpenCode 建置<br>
+  <span class="footer-license">本站教學內容（繁體中文解說）為本站原創，採 CC-BY-4.0；技術名詞與 register 範例引用自 <a href="https://www.raspberrypi.com/documentation/" rel="noopener">Raspberry Pi 官方文件</a>、<a href="https://libcamera.org/" rel="noopener">libcamera</a> 與公開感測器資料。</span></footer>
+</div></body></html>

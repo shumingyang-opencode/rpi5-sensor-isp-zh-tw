@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>單元 16 · 多感測器與實作案例 · Raspberry Pi 5 感測器影像調適繁中教學站</title>
+<meta name="description" content="客製 OV 接入、完整案例">
+<link rel="icon" type="image/svg+xml" href="../assets/favicon.svg">
+<link rel="stylesheet" href="../assets/site.css">
+</head>
+<body>
+<div class="container">
+
+<header>
+  <h1>單元 16 · 多感測器與實作案例</h1>
+  <p class="subtitle">客製 OV 接入、完整案例</p>
+</header>
+
+<nav class="topnav">  <a href="../index.html">首頁</a>
+  <a href="../map.html">概念地圖</a>
+  <a href="../learning-path.html">學習路線</a>
+  <a href="../docs/index.html">單元教學</a>
+  <a href="../about.html">關於</a></nav>
+
+<div class="back-link"><a href="index.html">← 單元教學</a></div>
+
+<div class="guide">
+<h2>多相機</h2>
+<p>RPi5 有 2 組 CSI 連接器，可同時跑兩顆感測器。libcamera 以「多 Camera」呈現，應用可同時操作。</p>
+<div class="demo-block"><div class="demo-label">列出所有相機</div><pre>rpicam-hello --list-cameras     <span class="hl-c"># 顯示每顆感測器的 mode</span></pre></div>
+
+<h2>客製 OV 感測器接入（核心技能）</h2>
+<ol>
+<li><strong>自寫 DT overlay</strong>：宣告 CSI、I2C 位址、reset/clock GPIO。</li>
+<li><strong>感測器驅動</strong>：libcamera 需感測器 driver 支援（或沿用相容驅動）。</li>
+<li><strong>感測器 init</strong>：以公開 register 資料設定（曝光/gain 基本控制）。</li>
+<li><strong>基本 tuning</strong>：先確認出圖，再做黑位/LSC/色彩。</li>
+</ol>
+<div class="callout warn"><strong>NDA 提醒：</strong>完整 register 表常需 NDA。本站只用<strong>公開可查</strong>的 register；正式開發請以 OVT 官方文件為準。</div>
+
+<h2>完整案例：調校一顆 OV 感測器</h2>
+<div class="pipe"><span class="step">接板+overlay</span><span class="arr">→</span><span class="step">出圖驗證</span><span class="arr">→</span><span class="step">RAW 檢查</span><span class="arr">→</span><span class="step">黑位/LSC</span><span class="arr">→</span><span class="step">AWB/CCM</span><span class="arr">→</span><span class="step">NR/Sharpen</span><span class="arr">→</span><span class="step">回歸</span></div>
+<ol>
+<li><code>rpicam-hello</code> 出圖 → 確認鏈路。</li>
+<li>存 RAW → 分析 Bayer、黑位、缺陷像素。</li>
+<li>灰卡校正黑位與 LSC。</li>
+<li>色卡校正 AWB 與 CCM。</li>
+<li>實景微調 NR/Sharpen。</li>
+<li>不同場景回歸，確認無副作用的調校。</li>
+</ol>
+
+<h2>最佳實踐總結</h2>
+<ul>
+<li>固定測試場景與光源，量化比較。</li>
+<li>每次只改一個參數。</li>
+<li>先 RAW 後 ISP，先校正後美化。</li>
+<li>記錄每次改動與前後圖。</li>
+</ul>
+<div class="callout"><strong>課程完成：</strong>你已具備從感測器基礎到影像調校的完整能力，可開始接任何 OV 感測器並把畫面調好。</div>
+
+
+  <div class="outcome">
+    <strong>看完這單元你應該能說出：</strong>
+    <ul><li>RPi5 多相機的基本操作。</li><li>客製 OV 感測器接入的四步流程。</li><li>完整調校案例的七步管線。</li><li>調校最佳實踐清單。</li></ul>
+  </div>
+
+  <h2>延伸閱讀</h2>
+  <ul>
+    <li>回顧全站：<a href="index.html">單元教學目錄</a>。</li>
+<li>對照站：<a href="https://shumingyang-opencode.github.io/orange-pi-sensor-isp-zh-tw/" rel="noopener">Orange Pi 站</a> · <a href="https://shumingyang-opencode.github.io/jetson-thor-t5000-sensor-isp-zh-tw/" rel="noopener">Thor 站</a></li>
+    <li><a href="../learning-path.html">學習路線</a>：複習全站</li>
+  </ul>
+
+  <div class="next-prev">
+    <a href="unit-15.html"><div class="np-label">← 上一篇</div><div class="np-name">單元 15 · 四平台影像調校功能比較</div></a>
+    <a class="np-next" href="index.html"><div class="np-label">課程完成 →</div><div class="np-name">回首頁 · 單元教學目錄</div></a>
+  </div>
+</div>
+
+<footer>這是 Raspberry Pi 5 感測器影像調適繁中教學站 · 由 OpenCode 建置<br>
+  <span class="footer-license">本站教學內容（繁體中文解說）為本站原創，採 CC-BY-4.0；技術名詞與 register 範例引用自 <a href="https://www.raspberrypi.com/documentation/" rel="noopener">Raspberry Pi 官方文件</a>、<a href="https://libcamera.org/" rel="noopener">libcamera</a> 與公開感測器資料。</span></footer>
+
+</div>
+</body>
+</html>

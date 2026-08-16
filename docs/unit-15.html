@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>單元 15 · 四平台影像調校功能比較 · Raspberry Pi 5 感測器影像調適繁中教學站</title>
+<meta name="description" content="RPi5 / Orange Pi / Orin Nano / Thor T5000">
+<link rel="icon" type="image/svg+xml" href="../assets/favicon.svg">
+<link rel="stylesheet" href="../assets/site.css">
+</head>
+<body>
+<div class="container">
+
+<header>
+  <h1>單元 15 · 四平台影像調校功能比較</h1>
+  <p class="subtitle">RPi5 / Orange Pi / Orin Nano / Thor T5000</p>
+</header>
+
+<nav class="topnav">  <a href="../index.html">首頁</a>
+  <a href="../map.html">概念地圖</a>
+  <a href="../learning-path.html">學習路線</a>
+  <a href="../docs/index.html">單元教學</a>
+  <a href="../about.html">關於</a></nav>
+
+<div class="back-link"><a href="index.html">← 單元教學</a></div>
+
+<div class="guide">
+<h2>為什麼要比較</h2>
+<p>sensor 影像調適的「能力」不只來自感測器，更多來自<strong>平台 ISP + 工具鏈</strong>。本單元從 RPi5 的角度，對照另外三個平台。</p>
+
+<h2>四大平台調校能力總表</h2>
+<table>
+<tr><th>項目</th><th><strong>RPi5</strong></th><th>Orange Pi</th><th>Orin Nano</th><th>Thor T5000</th></tr>
+<tr><td>ISP 形態</td><td>SoC 硬體 ISP</td><td>多靠感測器/無完整 ISP</td><td>NVIDIA ISP（libnvivp）</td><td>Blackwell + Holoscan</td></tr>
+<tr><td>AE/AWB</td><td>libcamera 演算法 ✅</td><td>感測器內建或無 ⚠️</td><td>NVIDIA 自動 ✅✅</td><td>NVIDIA 自動 ✅✅</td></tr>
+<tr><td>LSC</td><td>✅ tuning json</td><td>通常無 ⚠️</td><td>✅ NVIDIA</td><td>✅ NVIDIA</td></tr>
+<tr><td>NR/Sharpen</td><td>✅ 可調</td><td>⚠️ 有限</td><td>✅✅ 豐富</td><td>✅✅ 豐富</td></tr>
+<tr><td>HDR</td><td>✅ 多幀</td><td>⚠️ 依 SoC</td><td>✅</td><td>✅✅</td></tr>
+<tr><td>調校工具鏈</td><td>開源、看得見</td><td>v4l2-ctl（陽春）</td><td>NVIDIA 工具（部分封閉）</td><td>Holoscan（新）</td></tr>
+<tr><td>tuning 檔</td><td>libcamera .json</td><td>—</td><td>NVIDIA 私有格式</td><td>NVIDIA 私有格式</td></tr>
+<tr><td>可視性/學習性</td><td><strong>最適合學習</strong></td><td>陽春但開放</td><td>強大但不透明</td><td>新且高階</td></tr>
+</table>
+<div class="callout"><strong>RPi5 的定位：</strong>調校功能<strong>不是最強</strong>，但「開源 + 文件齊 + 每一層都看得見」讓它是<strong>最好的學習平台</strong>——學會這裡的觀念，NVIDIA 平台的調校只是換工具。</div>
+
+<h2>選型建議</h2>
+<ul>
+<li><strong>學習/教學</strong> → RPi5。</li>
+<li><strong>簡單專案</strong> → Orange Pi（能跑就好）。</li>
+<li><strong>工業/高品質</strong> → Orin Nano（GMSL、豐富 ISP）。</li>
+<li><strong>次世代機器人</strong> → Thor T5000（Holoscan Sensor Bridge）。</li>
+</ul>
+
+
+  <div class="outcome">
+    <strong>看完這單元你應該能說出：</strong>
+    <ul><li>四平台 ISP 形態與調校能力差異。</li><li>RPi5 在學習性上的優勢與理由。</li><li>各平台調校工具鏈與 tuning 檔差異。</li><li>依需求選擇平台的判斷依據。</li></ul>
+  </div>
+
+  <h2>延伸閱讀</h2>
+  <ul>
+    <li>下一篇：<a href="unit-16.html">單元 16 · 多感測器與實作案例</a>。</li>
+<li>對照站：<a href="https://shumingyang-opencode.github.io/jetson-orin-nano-sensor-isp-zh-tw/" rel="noopener">Orin Nano 站</a></li>
+    <li><a href="../learning-path.html">學習路線</a>：複習全站</li>
+  </ul>
+
+  <div class="next-prev">
+    <a href="unit-14.html"><div class="np-label">← 上一篇</div><div class="np-name">單元 14 · 清晰度、動態範圍與調校工作流</div></a>
+    <a class="np-next" href="unit-16.html"><div class="np-label">下一篇 →</div><div class="np-name">單元 16 · 多感測器與實作案例</div></a>
+  </div>
+</div>
+
+<footer>這是 Raspberry Pi 5 感測器影像調適繁中教學站 · 由 OpenCode 建置<br>
+  <span class="footer-license">本站教學內容（繁體中文解說）為本站原創，採 CC-BY-4.0；技術名詞與 register 範例引用自 <a href="https://www.raspberrypi.com/documentation/" rel="noopener">Raspberry Pi 官方文件</a>、<a href="https://libcamera.org/" rel="noopener">libcamera</a> 與公開感測器資料。</span></footer>
+
+</div>
+</body>
+</html>

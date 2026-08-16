@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>概念地圖 · Raspberry Pi 5 感測器影像調適繁中教學站</title>
+<meta name="description" content="sensor 影像調適概念地圖">
+<link rel="icon" type="image/svg+xml" href="assets/favicon.svg">
+<link rel="stylesheet" href="assets/site.css">
+</head>
+<body>
+<div class="container">
+<header><h1>概念地圖</h1><p class="subtitle">sensor 影像調適的核心概念，一張圖看懂</p></header>
+<nav class="topnav">  <a href="index.html">首頁</a>
+  <a href="map.html">概念地圖</a>
+  <a href="learning-path.html">學習路線</a>
+  <a href="docs/index.html">單元教學</a>
+  <a href="about.html">關於</a></nav>
+<div class="back-link"><a href="index.html">← 回首頁</a></div>
+<div class="guide">
+  <p>Raspberry Pi 5 的 sensor 影像調適可以一句話講完：<strong>感測器送 RAW → 硬體 ISP 做品質校正 → 輸出可看的影像</strong>。下面從「生態」到「比較」拆解。</p>
+  <h2>1. 生態與感測器基礎 · Ecosystem & Sensor</h2>
+  <p>RPi5 的相機硬體介面與軟體堆疊（單元 1–3）。</p>
+  <div class="concept-map">
+    <div class="cm-row"><a class="cm-node " href="docs/unit-01.html"><span class="label">CSI-2 介面</span><span class="tag">2×4-lane 相機連接器</span></a><a class="cm-node " href="docs/unit-01.html"><span class="label">libcamera</span><span class="tag">開源相機框架</span></a><a class="cm-node " href="docs/unit-02.html"><span class="label">感測器</span><span class="tag">Bayer · rolling/global</span></a><a class="cm-node " href="docs/unit-03.html"><span class="label">I2C/SCCB</span><span class="tag">register 讀寫</span></a></div>
+  </div>
+  <h2>2. Sensor Bring-up · 4–6</h2>
+  <p>讓第一個鏡頭跑起來並除錯（單元 4–6）。</p>
+  <div class="concept-map">
+    <div class="cm-row"><a class="cm-node " href="docs/unit-04.html"><span class="label">unicam 驅動</span><span class="tag">CSI-2 接收器</span></a><a class="cm-node " href="docs/unit-05.html"><span class="label">rpicam-apps</span><span class="tag">hello/still/vid</span></a><a class="cm-node " href="docs/unit-06.html"><span class="label">上電與 PLL</span><span class="tag">clock 除錯</span></a></div>
+  </div>
+  <h2>3. ISP 管線與調校 · 7–14</h2>
+  <p>RAW→ISP→品質校正，含 5 個調校專章（單元 7–14）。</p>
+  <div class="concept-map">
+    <div class="cm-row"><a class="cm-node " href="docs/unit-07.html"><span class="label">ISP 管線</span><span class="tag">black level→gamma</span></a><a class="cm-node " href="docs/unit-10.html"><span class="label">AE 曝光</span><span class="tag">shutter/gain</span></a><a class="cm-node " href="docs/unit-11.html"><span class="label">AWB/色彩</span><span class="tag">白平衡/CCM</span></a><a class="cm-node " href="docs/unit-13.html"><span class="label">降噪</span><span class="tag">NR 調校</span></a></div>
+  </div>
+  <h2>4. 比較與實作 · 15–16</h2>
+  <p>跨平台比較與完整案例（單元 15–16）。</p>
+  <div class="concept-map">
+    <div class="cm-row"><a class="cm-node " href="docs/unit-15.html"><span class="label">四平台比較</span><span class="tag">ISP 能力對照</span></a><a class="cm-node " href="docs/unit-16.html"><span class="label">多感測器</span><span class="tag">客製 OV 接入</span></a></div>
+  </div>
+
+  <div class="callout info"><strong>小結：</strong>RPi5 = 「開源可控的 libcamera」×「硬體 ISP」×「OM 感測器」。學會它能建立完整的 sensor→ISP→調校心智模型。</div>
+</div>
+<footer>這是 Raspberry Pi 5 感測器影像調適繁中教學站 · 由 OpenCode 建置<br>
+  <span class="footer-license">本站教學內容（繁體中文解說）為本站原創，採 CC-BY-4.0；技術名詞與 register 範例引用自 <a href="https://www.raspberrypi.com/documentation/" rel="noopener">Raspberry Pi 官方文件</a>、<a href="https://libcamera.org/" rel="noopener">libcamera</a> 與公開感測器資料。</span></footer>
+</div></body></html>

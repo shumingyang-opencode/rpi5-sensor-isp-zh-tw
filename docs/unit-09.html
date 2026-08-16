@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>單元 9 · 各平台 ISP 架構差異 · Raspberry Pi 5 感測器影像調適繁中教學站</title>
+<meta name="description" content="sensor 端 vs 平台 ISP">
+<link rel="icon" type="image/svg+xml" href="../assets/favicon.svg">
+<link rel="stylesheet" href="../assets/site.css">
+</head>
+<body>
+<div class="container">
+
+<header>
+  <h1>單元 9 · 各平台 ISP 架構差異</h1>
+  <p class="subtitle">sensor 端 vs 平台 ISP</p>
+</header>
+
+<nav class="topnav">  <a href="../index.html">首頁</a>
+  <a href="../map.html">概念地圖</a>
+  <a href="../learning-path.html">學習路線</a>
+  <a href="../docs/index.html">單元教學</a>
+  <a href="../about.html">關於</a></nav>
+
+<div class="back-link"><a href="index.html">← 單元教學</a></div>
+
+<div class="guide">
+<h2>兩種 ISP 的分工</h2>
+<table>
+<tr><th>位置</th><th>做什麼</th><th>例子</th></tr>
+<tr><td><strong>感測器內 ISP</strong></td><td>基礎校正（黑位、缺陷像素、簡單增益）</td><td>部分 OV 感測器內建</td></tr>
+<tr><td><strong>平台 ISP</strong></td><td>完整品質管線（demosaic、NR、CCM、gamma）</td><td>RPi 硬體 ISP、NVIDIA ISP</td></tr>
+</table>
+<div class="callout"><strong>調適關鍵：</strong>要弄清楚「哪些校正發生在感測器、哪些在平台 ISP」——否則同樣的參數會重複校正或互相打架。</div>
+
+<h2>四個平台的 ISP 概覽（單元 15 深入比較）</h2>
+<table>
+<tr><th>平台</th><th>ISP 形態</th><th>調校介面</th></tr>
+<tr><td><strong>RPi5</strong></td><td>SoC 硬體 ISP</td><td>libcamera tuning <code>.json</code></td></tr>
+<tr><td><strong>Orange Pi</strong></td><td>多靠感測器或無</td><td>V4L2 controls（有限）</td></tr>
+<tr><td><strong>Orin Nano</strong></td><td>NVIDIA ISP（libnvivp）</td><td>Argus / NVIDIA tuning</td></tr>
+<tr><td><strong>Thor T5000</strong></td><td>Blackwell + Holoscan</td><td>Holoscan / NVIDIA 堆疊</td></tr>
+</table>
+<div class="callout info"><strong>觀念：</strong>「調校能力」= 平台 ISP 提供多少可調參數 + 工具鏈多完整。RPi5 因開源而「看得見」；NVIDIA 系列參數更多但部分不透明。</div>
+
+
+  <div class="outcome">
+    <strong>看完這單元你應該能說出：</strong>
+    <ul><li>sensor 內 ISP 與平台 ISP 的分工。</li><li>四平台 ISP 形態與調校介面概覽。</li><li>為什麼要知道「校正發生在哪一層」。</li><li>開源 vs 閉源對調校可視性的影響。</li></ul>
+  </div>
+
+  <h2>延伸閱讀</h2>
+  <ul>
+    <li>下一篇：<a href="unit-10.html">單元 10 · 曝光與自動曝光</a>。</li>
+<li><a href="https://libcamera.org/docs.html" rel="noopener">libcamera 文件</a></li>
+    <li><a href="../learning-path.html">學習路線</a>：複習全站</li>
+  </ul>
+
+  <div class="next-prev">
+    <a href="unit-08.html"><div class="np-label">← 上一篇</div><div class="np-name">單元 8 · RAW 擷取與資料格式</div></a>
+    <a class="np-next" href="unit-10.html"><div class="np-label">下一篇 →</div><div class="np-name">單元 10 · 曝光與自動曝光（AE）</div></a>
+  </div>
+</div>
+
+<footer>這是 Raspberry Pi 5 感測器影像調適繁中教學站 · 由 OpenCode 建置<br>
+  <span class="footer-license">本站教學內容（繁體中文解說）為本站原創，採 CC-BY-4.0；技術名詞與 register 範例引用自 <a href="https://www.raspberrypi.com/documentation/" rel="noopener">Raspberry Pi 官方文件</a>、<a href="https://libcamera.org/" rel="noopener">libcamera</a> 與公開感測器資料。</span></footer>
+
+</div>
+</body>
+</html>

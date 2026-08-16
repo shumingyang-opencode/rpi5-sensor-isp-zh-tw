@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>單元 14 · 清晰度、動態範圍與調校工作流 · Raspberry Pi 5 感測器影像調適繁中教學站</title>
+<meta name="description" content="tuning 檔與完整流程">
+<link rel="icon" type="image/svg+xml" href="../assets/favicon.svg">
+<link rel="stylesheet" href="../assets/site.css">
+</head>
+<body>
+<div class="container">
+
+<header>
+  <h1>單元 14 · 清晰度、動態範圍與調校工作流</h1>
+  <p class="subtitle">tuning 檔與完整流程</p>
+</header>
+
+<nav class="topnav">  <a href="../index.html">首頁</a>
+  <a href="../map.html">概念地圖</a>
+  <a href="../learning-path.html">學習路線</a>
+  <a href="../docs/index.html">單元教學</a>
+  <a href="../about.html">關於</a></nav>
+
+<div class="back-link"><a href="index.html">← 單元教學</a></div>
+
+<div class="guide">
+<h2>清晰度（Sharpness / Contrast）</h2>
+<ul>
+<li><strong>Sharpen</strong>：增強邊緣對比；過度會產生光暈（halo）。</li>
+<li><strong>Contrast</strong>：整體對比曲線；與 gamma 一起看。</li>
+<li><strong>調校陷阱：</strong>銳化會放大雜訊——通常 NR 與 Sharpen 要成對調適。</li>
+</ul>
+
+<h2>動態範圍與 HDR</h2>
+<p>場景亮暗差異大時（逆光、窗邊），單幀 8-bit 不夠用：</p>
+<ul>
+<li><strong>多幀 HDR</strong>：RPi5 支援 HDR 相機模式，合成多幀擴展動態範圍。</li>
+<li><strong>tone mapping</strong>：把高動態範圍壓回輸出範圍，決定暗部/亮部細節去留。</li>
+</ul>
+<div class="callout info"><strong>RPi5 亮點：</strong>內建 HDR 模式，可開啟 <code>dtoverlay=...hdr</code> 系列設定做多幀合成調校。</div>
+
+<h2>tuning 檔格式（libcamera .json）</h2>
+<div class="demo-block"><div class="demo-label">libcamera tuning 結構（示意）</div><pre>{ "version": 1,
+  "algorithms": [
+    { "Awb":     { "mode": ... } },
+    { "ColourMatrix": { "ccm": [...] } },
+    { "Denoise": { "strength": ... } },
+    { "LensShading": { "meshes": [...] } }
+  ] }</pre></div>
+<p>每一區塊對應 IPA 的一個演算法，是 RPi 調校的「單一來源」。</p>
+
+<h2>完整調校工作流</h2>
+<ol>
+<li><strong>拍測試圖</strong>：灰卡 / 色卡 / 積分球，固定光源與曝光。</li>
+<li><strong>校正</strong>：黑位、LSC、CCM、AWB 基準。</li>
+<li><strong>動態調校</strong>：AE/AWB 的 convergence 與範圍。</li>
+<li><strong>主觀微調</strong>：NR / Sharpen / 色彩喜好。</li>
+<li><strong>回歸驗證</strong>：不同場景跑一輪，確認沒改壞其他情況。</li>
+</ol>
+<div class="callout"><strong>核心紀律：</strong>每次只改一個參數、記錄前後、用統一場景比較——調校最忌「一次改一堆」。</div>
+
+
+  <div class="outcome">
+    <strong>看完這單元你應該能說出：</strong>
+    <ul><li>Sharpen/Contrast 的調校與陷阱。</li><li>多幀 HDR 與 tone mapping 觀念。</li><li>libcamera tuning 檔的區塊結構。</li><li>五步調校工作流與紀律。</li></ul>
+  </div>
+
+  <h2>延伸閱讀</h2>
+  <ul>
+    <li>下一篇：<a href="unit-15.html">單元 15 · 四平台影像調校比較</a>。</li>
+<li><a href="https://www.raspberrypi.com/documentation/computers/camera_software.html#tuning" rel="noopener">RPi Camera Tuning 指南</a></li>
+    <li><a href="../learning-path.html">學習路線</a>：複習全站</li>
+  </ul>
+
+  <div class="next-prev">
+    <a href="unit-13.html"><div class="np-label">← 上一篇</div><div class="np-name">單元 13 · 雜訊與降噪</div></a>
+    <a class="np-next" href="unit-15.html"><div class="np-label">下一篇 →</div><div class="np-name">單元 15 · 四平台影像調校功能比較</div></a>
+  </div>
+</div>
+
+<footer>這是 Raspberry Pi 5 感測器影像調適繁中教學站 · 由 OpenCode 建置<br>
+  <span class="footer-license">本站教學內容（繁體中文解說）為本站原創，採 CC-BY-4.0；技術名詞與 register 範例引用自 <a href="https://www.raspberrypi.com/documentation/" rel="noopener">Raspberry Pi 官方文件</a>、<a href="https://libcamera.org/" rel="noopener">libcamera</a> 與公開感測器資料。</span></footer>
+
+</div>
+</body>
+</html>

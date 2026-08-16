@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>關於本站 · Raspberry Pi 5 感測器影像調適繁中教學站</title>
+<meta name="description" content="關於本站">
+<link rel="icon" type="image/svg+xml" href="assets/favicon.svg">
+<link rel="stylesheet" href="assets/site.css">
+</head>
+<body>
+<div class="container">
+<header><h1>關於本站</h1><p class="subtitle">緣起、授權與建置方式</p></header>
+<nav class="topnav">  <a href="index.html">首頁</a>
+  <a href="map.html">概念地圖</a>
+  <a href="learning-path.html">學習路線</a>
+  <a href="docs/index.html">單元教學</a>
+  <a href="about.html">關於</a></nav>
+<div class="back-link"><a href="index.html">← 回首頁</a></div>
+<div class="guide">
+  <h2>這個網站是什麼</h2>
+  <p>一份把 <strong>Raspberry Pi 5 上的 sensor 影像調適</strong>從感測器基礎教到影像品質調校的繁體中文教學網站。目標讀者是<strong>影像/韌體/相機工程師與學生</strong>——你想搞懂「感測器送出來的 RAW 如何變成好看的畫面」。</p>
+<p>本站採用<strong>中英對照</strong>：中文解說為主，register 名與指令保留英文。</p>
+  <h2>為什麼要學 sensor 影像調適</h2>
+  <ul>
+<li>RPi5 有硬體 ISP + 開源 libcamera，可完整觀察每個調校環節。</li>
+<li>用 OmniVision 感測器為實例，貼近工業實際。</li>
+<li>學會一套可轉移到 Orange Pi / Jetson 的 sensor→ISP 心智模型。</li>
+</ul>
+  <h2>本站建置</h2>
+  <ul class="timeline">
+    <li>規劃 16 單元課程（sensor bring-up → ISP 管線 → 影像品質調適 → 跨平台比較）</li>
+    <li>承襲既有教學站的深色 × 霓虹設計語言與架構慣例</li>
+    <li>建立首頁、概念地圖、學習路線與單元教學架構</li>
+    <li>撰寫各單元內容，標記需專業校正重點</li>
+  </ul>
+  <h2>授權</h2>
+  <div class="license-box"><strong>本站教學內容</strong>（繁體中文解說）為本站原創，以 <strong>CC-BY-4.0</strong> 授權釋出。文中技術名詞與 register 範例引用自各平台官方文件與公開感測器資料；NDA 內容不納入本站。</div>
+  <h2>技術資訊</h2>
+  <div class="file-tree">rpi5-sensor-isp-zh-tw/
+├── index.html            課程總覽
+├── map.html              概念地圖
+├── learning-path.html    學習路線
+├── about.html            關於本站
+├── docs/                 16 單元教學頁
+│   ├── index.html        單元一覽
+│   └── unit-01…16        16 篇教學頁
+├── assets/site.css       單一共享樣式
+└── .nojekyll             GitHub Pages 直出</div>
+  <p class="hint">本站為純靜態 HTML，無建置步驟，直接部署於 GitHub Pages。</p>
+</div>
+<footer>這是 Raspberry Pi 5 感測器影像調適繁中教學站 · 由 OpenCode 建置<br>
+  <span class="footer-license">本站教學內容（繁體中文解說）為本站原創，採 CC-BY-4.0；技術名詞與 register 範例引用自 <a href="https://www.raspberrypi.com/documentation/" rel="noopener">Raspberry Pi 官方文件</a>、<a href="https://libcamera.org/" rel="noopener">libcamera</a> 與公開感測器資料。</span></footer>
+</div></body></html>

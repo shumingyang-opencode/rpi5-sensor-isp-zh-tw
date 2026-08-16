@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>單元 2 · 影像感測器基礎 · Raspberry Pi 5 感測器影像調適繁中教學站</title>
+<meta name="description" content="Bayer、快門型態、感測器內部方塊">
+<link rel="icon" type="image/svg+xml" href="../assets/favicon.svg">
+<link rel="stylesheet" href="../assets/site.css">
+</head>
+<body>
+<div class="container">
+
+<header>
+  <h1>單元 2 · 影像感測器基礎</h1>
+  <p class="subtitle">Bayer、快門型態、感測器內部方塊</p>
+</header>
+
+<nav class="topnav">  <a href="../index.html">首頁</a>
+  <a href="../map.html">概念地圖</a>
+  <a href="../learning-path.html">學習路線</a>
+  <a href="../docs/index.html">單元教學</a>
+  <a href="../about.html">關於</a></nav>
+
+<div class="back-link"><a href="index.html">← 單元教學</a></div>
+
+<div class="guide">
+<h2>感測器在做什麼</h2>
+<p>影像感測器把「光」轉成「電壓」再轉成「數位值」：每個像素依接收到的光子量產生訊號，經 ADC 量化成數位輸出（RAW）。</p>
+<div class="pipe"><span class="step">光子</span><span class="arr">→</span><span class="step">像素（photodiode）</span><span class="arr">→</span><span class="step">類比增益</span><span class="arr">→</span><span class="step">ADC</span><span class="arr">→</span><span class="step">RAW 輸出</span></div>
+
+<h2>Bayer CFA：一張圖只有 1/4 彩度</h2>
+<p>單一像素只能感應亮度，要彩色就得在像素上蓋<strong>色彩濾波陣列（CFA）</strong>。最常見的是 <strong>Bayer RGGB</strong>：</p>
+<table class="reg-table">
+<tr><td class="val">R</td><td class="val">G</td><td class="val">R</td><td class="val">G</td></tr>
+<tr><td class="val">G</td><td class="val">B</td><td class="val">G</td><td class="val">B</td></tr>
+<tr><td class="val">R</td><td class="val">G</td><td class="val">R</td><td class="val">G</td></tr>
+<tr><td class="val">G</td><td class="val">B</td><td class="val">G</td><td class="val">B</td></tr>
+</table>
+<div class="callout info"><strong>意義：</strong>RAW 不是「灰階」，而是「每像素只有 R/G/B 其中之一」——<strong>demosaic（去馬賽克）</strong>在 ISP 中重建完整彩度（單元 7）。</div>
+
+<h2>快門型態：Rolling vs Global</h2>
+<table>
+<tr><th>型態</th><th>掃描方式</th><th>典型感測器</th><th>限制</th></tr>
+<tr><td><strong>Rolling</strong></td><td>逐列曝光/讀出</td><td>OV5647、OV5640</td><td>高速物體會扭曲、banding</td></tr>
+<tr><td><strong>Global</strong></td><td>全像素同時曝光</td><td>OV9281</td><td>電路較複雜、成本高</td></tr>
+</table>
+
+<h2>感測器內部方塊圖</h2>
+<div class="pipe"><span class="step">Pixel Array</span><span class="arr">→</span><span class="step">Column ADC</span><span class="arr">→</span><span class="step">數位處理（增益/校正）</span><span class="arr">→</span><span class="step">MIPI 輸出</span></div>
+<p>周邊還包括：<strong>時序產生器（timing）</strong>、<strong>PLL（內部 clock）</strong>、<strong>I2C 介面（register 控制）</strong>、<strong>上電管理（PWDN/RESET）</strong>。</p>
+<div class="callout warn"><strong>調適觀念：</strong>感測器層決定了「RAW 的上限」——雜訊、動態範圍、色彩靈敏度都在這一層定型；ISP 只能在此基礎上「校正」，無法無中生有。</div>
+
+
+  <div class="outcome">
+    <strong>看完這單元你應該能說出：</strong>
+    <ul><li>感測器把光轉成 RAW 數位值的基本流程。</li><li>Bayer CFA 為什麼只有 1/4 彩度、demosaic 的意義。</li><li>Rolling 與 Global shutter 的差異與限制。</li><li>感測器內部五大區塊。</li></ul>
+  </div>
+
+  <h2>延伸閱讀</h2>
+  <ul>
+    <li>下一篇：<a href="unit-03.html">單元 3 · 感測器通訊介面</a>。</li>
+<li><a href="https://www.ovt.com/products/" rel="noopener">OmniVision 產品頁</a></li>
+    <li><a href="../learning-path.html">學習路線</a>：複習全站</li>
+  </ul>
+
+  <div class="next-prev">
+    <a href="unit-01.html"><div class="np-label">← 上一篇</div><div class="np-name">單元 1 · 平台相機生態總覽</div></a>
+    <a class="np-next" href="unit-03.html"><div class="np-label">下一篇 →</div><div class="np-name">單元 3 · 感測器通訊介面</div></a>
+  </div>
+</div>
+
+<footer>這是 Raspberry Pi 5 感測器影像調適繁中教學站 · 由 OpenCode 建置<br>
+  <span class="footer-license">本站教學內容（繁體中文解說）為本站原創，採 CC-BY-4.0；技術名詞與 register 範例引用自 <a href="https://www.raspberrypi.com/documentation/" rel="noopener">Raspberry Pi 官方文件</a>、<a href="https://libcamera.org/" rel="noopener">libcamera</a> 與公開感測器資料。</span></footer>
+
+</div>
+</body>
+</html>

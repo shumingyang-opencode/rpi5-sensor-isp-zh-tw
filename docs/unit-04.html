@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>單元 4 · 平台相機框架與驅動 · Raspberry Pi 5 感測器影像調適繁中教學站</title>
+<meta name="description" content="libcamera、unicam、DT overlay">
+<link rel="icon" type="image/svg+xml" href="../assets/favicon.svg">
+<link rel="stylesheet" href="../assets/site.css">
+</head>
+<body>
+<div class="container">
+
+<header>
+  <h1>單元 4 · 平台相機框架與驅動</h1>
+  <p class="subtitle">libcamera、unicam、DT overlay</p>
+</header>
+
+<nav class="topnav">  <a href="../index.html">首頁</a>
+  <a href="../map.html">概念地圖</a>
+  <a href="../learning-path.html">學習路線</a>
+  <a href="../docs/index.html">單元教學</a>
+  <a href="../about.html">關於</a></nav>
+
+<div class="back-link"><a href="index.html">← 單元教學</a></div>
+
+<div class="guide">
+<h2>libcamera 架構</h2>
+<p>libcamera 是 Linux 的開源相機框架，核心元件：</p>
+<table>
+<tr><th>元件</th><th>角色</th></tr>
+<tr><td><strong>PipelineHandler</strong></td><td>把「感測器+ISP」串成一個 Camera</td></tr>
+<tr><td><strong>Camera</strong></td><td>對應用程式暴露的相機實體</td></tr>
+<tr><td><strong>Controls</strong></td><td>曝光、增益、白平衡等標準化控制介面</td></tr>
+<tr><td><strong>IPA（ISP 調適）</strong></td><td>執行 AE/AWB 等演算法，產出 ISP 參數</td></tr>
+</table>
+<div class="callout"><strong>調適重點：</strong>你設定的是「高階控制」（如 exposure 時間），IPA/ISP 負責轉成 register 與 ISP 參數——理解這層「抽象」是 libcamera tuning 的關鍵。</div>
+
+<h2>unicam 與感測器驅動</h2>
+<ul>
+<li><strong>unicam</strong>：RPi 的 CSI-2 接收器驅動，負責收集 MIPI 資料。</li>
+<li><strong>感測器驅動</strong>：如 <code>ov5647.c</code>，實現 libcamera 的 sensor 介面（提供曝光/增益等控制）。</li>
+</ul>
+
+<h2>DT overlay：告訴系統「有這顆感測器」</h2>
+<div class="demo-block"><div class="demo-label">/boot/firmware/config.txt</div><pre>dtoverlay=ov5647            <span class="hl-c"># 官方 Camera Module v1</span>
+dtoverlay=ov9281            <span class="hl-c"># global shutter 板</span>
+<span class="hl-c"># 自訂板：dtoverlay=my-sensor 需自備 overlay 檔</span></pre></div>
+<div class="callout warn"><strong>客製感測器：</strong>要接自訂 OV 板，需要自寫 <strong>device tree overlay</strong>（宣告 CSI 通道、I2C 位址、reset/clock GPIO）——這是單元 16 的主題。</div>
+
+
+  <div class="outcome">
+    <strong>看完這單元你應該能說出：</strong>
+    <ul><li>libcamera 五大核心元件的分工。</li><li>unicam 與感測器驅動的角色。</li><li>DT overlay 如何啟用感測器。</li><li>為什麼「控制抽象」對 tuning 重要。</li></ul>
+  </div>
+
+  <h2>延伸閱讀</h2>
+  <ul>
+    <li>下一篇：<a href="unit-05.html">單元 5 · 第一個鏡頭跑起來</a>。</li>
+<li><a href="https://libcamera.org/docs.html" rel="noopener">libcamera 文件</a></li>
+    <li><a href="../learning-path.html">學習路線</a>：複習全站</li>
+  </ul>
+
+  <div class="next-prev">
+    <a href="unit-03.html"><div class="np-label">← 上一篇</div><div class="np-name">單元 3 · 感測器通訊介面</div></a>
+    <a class="np-next" href="unit-05.html"><div class="np-label">下一篇 →</div><div class="np-name">單元 5 · 第一個鏡頭跑起來</div></a>
+  </div>
+</div>
+
+<footer>這是 Raspberry Pi 5 感測器影像調適繁中教學站 · 由 OpenCode 建置<br>
+  <span class="footer-license">本站教學內容（繁體中文解說）為本站原創，採 CC-BY-4.0；技術名詞與 register 範例引用自 <a href="https://www.raspberrypi.com/documentation/" rel="noopener">Raspberry Pi 官方文件</a>、<a href="https://libcamera.org/" rel="noopener">libcamera</a> 與公開感測器資料。</span></footer>
+
+</div>
+</body>
+</html>

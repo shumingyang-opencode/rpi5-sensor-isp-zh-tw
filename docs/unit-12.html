@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>單元 12 · 鏡頭陰影校正（LSC） · Raspberry Pi 5 感測器影像調適繁中教學站</title>
+<meta name="description" content="shading 成因與校正">
+<link rel="icon" type="image/svg+xml" href="../assets/favicon.svg">
+<link rel="stylesheet" href="../assets/site.css">
+</head>
+<body>
+<div class="container">
+
+<header>
+  <h1>單元 12 · 鏡頭陰影校正（LSC）</h1>
+  <p class="subtitle">shading 成因與校正</p>
+</header>
+
+<nav class="topnav">  <a href="../index.html">首頁</a>
+  <a href="../map.html">概念地圖</a>
+  <a href="../learning-path.html">學習路線</a>
+  <a href="../docs/index.html">單元教學</a>
+  <a href="../about.html">關於</a></nav>
+
+<div class="back-link"><a href="index.html">← 單元教學</a></div>
+
+<div class="guide">
+<h2>什麼是 lens shading</h2>
+<p>鏡頭邊緣光量低於中心（cos⁴ law 效應），導致「四周變暗、可能偏色」。<strong>LSC（lens shading correction）</strong>用網格增益補償。</p>
+<div class="pipe"><span class="step">原始：四周暗</span><span class="arr">→</span><span class="step">LSC 網格增益</span><span class="arr">→</span><span class="step">亮度均勻</span></div>
+
+<h2>LSC 網格</h2>
+<ul>
+<li>把畫面切成 <strong>網格</strong>（如 17×13 或依平台），每個節點存 R/G/B 增益。</li>
+<li>節點間以插值補償，因此<strong>節點越多越精細</strong>，但檔案越大。</li>
+</ul>
+<div class="callout info"><strong>RPi 實務：</strong>libcamera 的 LSC 校正由 <code>rpicam-apps</code> 的 calibration 流程（拍灰卡/積分球）自動產生網格，寫入 tuning 檔。</div>
+
+<h2>LSC 與色偏</h2>
+<div class="callout warn"><strong>偏色陰影：</strong>除了亮度暗角，鏡頭也會造成「角落偏色」（尤其廣角）——R/G/B 三個通道的 LSC 增益必須分開調，不能只補亮度。</div>
+
+<h2>調校檢查表</h2>
+<table>
+<tr><th>症狀</th><th>檢查</th></tr>
+<tr><td>四周暗角</td><td>LSC 增益是否偏低、網格是否涵蓋全畫面</td></tr>
+<tr><td>角落偏色</td><td>R/G/B 分通道 LSC 是否獨立設定</td></tr>
+<tr><td>調完仍有暗角</td><td>鏡頭模組換過？LSC 需隨鏡頭重新校正</td></tr>
+</table>
+<div class="callout"><strong>關鍵：</strong>LSC 是「鏡頭 + 感測器組合」特有的——換鏡頭、換 sensor 板就要<strong>重新校正</strong>。</div>
+
+
+  <div class="outcome">
+    <strong>看完這單元你應該能說出：</strong>
+    <ul><li>lens shading 的成因（cos⁴ 與色偏）。</li><li>LSC 網格如何運作。</li><li>RPi libcamera 如何產生 LSC。</li><li>LSC 需隨鏡頭重新校正。</li></ul>
+  </div>
+
+  <h2>延伸閱讀</h2>
+  <ul>
+    <li>下一篇：<a href="unit-13.html">單元 13 · 雜訊與降噪</a>。</li>
+<li><a href="https://datasheets.raspberrypi.com/camera/raspberry-pi-camera-guide.pdf" rel="noopener">RPi Camera Guide（LSC）</a></li>
+    <li><a href="../learning-path.html">學習路線</a>：複習全站</li>
+  </ul>
+
+  <div class="next-prev">
+    <a href="unit-11.html"><div class="np-label">← 上一篇</div><div class="np-name">單元 11 · 白平衡與色彩（AWB / CCM）</div></a>
+    <a class="np-next" href="unit-13.html"><div class="np-label">下一篇 →</div><div class="np-name">單元 13 · 雜訊與降噪</div></a>
+  </div>
+</div>
+
+<footer>這是 Raspberry Pi 5 感測器影像調適繁中教學站 · 由 OpenCode 建置<br>
+  <span class="footer-license">本站教學內容（繁體中文解說）為本站原創，採 CC-BY-4.0；技術名詞與 register 範例引用自 <a href="https://www.raspberrypi.com/documentation/" rel="noopener">Raspberry Pi 官方文件</a>、<a href="https://libcamera.org/" rel="noopener">libcamera</a> 與公開感測器資料。</span></footer>
+
+</div>
+</body>
+</html>
