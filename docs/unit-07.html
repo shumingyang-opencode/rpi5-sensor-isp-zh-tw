@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>單元 7 · ISP 管線深入 · Raspberry Pi 5 感測器影像調適繁中教學站</title>
-<meta name="description" content="black level → gamma">
+<meta name="description" content="每個區塊 + 對應調校參數">
 <link rel="icon" type="image/svg+xml" href="../assets/favicon.svg">
 <link rel="stylesheet" href="../assets/site.css">
 </head>
@@ -13,7 +13,7 @@
 
 <header>
   <h1>單元 7 · ISP 管線深入</h1>
-  <p class="subtitle">black level → gamma</p>
+  <p class="subtitle">每個區塊 + 對應調校參數</p>
 </header>
 
 <nav class="topnav">  <a href="../index.html">首頁</a>
@@ -25,35 +25,39 @@
 <div class="back-link"><a href="index.html">← 單元教學</a></div>
 
 <div class="guide">
-<h2>ISP 在做什麼</h2>
-<p>感測器輸出 RAW（每像素單色），ISP 把它變成「人眼覺得自然」的 RGB/YUV。典型管線：</p>
+<h2>ISP 管線全圖</h2>
 <div class="pipe"><span class="step">Black Level</span><span class="arr">→</span><span class="step">Lens Shading</span><span class="arr">→</span><span class="step">Demosaic</span><span class="arr">→</span><span class="step">降噪</span><span class="arr">→</span><span class="step">CCM</span><span class="arr">→</span><span class="step">Gamma</span><span class="arr">→</span><span class="step">輸出</span></div>
 
-<h2>各區塊與對應調校</h2>
+<h2>逐區塊：作用與調校對應</h2>
 <table>
-<tr><th>區塊</th><th>作用</th><th>調校點</th></tr>
-<tr><td><strong>Black Level</strong></td><td>扣除暗電流基準</td><td>黑位校正值</td></tr>
-<tr><td><strong>Lens Shading</strong></td><td>補償鏡頭四周暗角</td><td>LSC 網格（單元 12）</td></tr>
-<tr><td><strong>Demosaic</strong></td><td>Bayer→全彩</td><td>假色抑制</td></tr>
-<tr><td><strong>降噪</strong></td><td>抑制亮度/彩色雜訊</td><td>NR 強度（單元 13）</td></tr>
-<tr><td><strong>CCM</strong></td><td>色彩空間校正</td><td>色彩矩陣（單元 11）</td></tr>
-<tr><td><strong>Gamma</strong></td><td>亮度對比曲線</td><td>gamma/對比（單元 14）</td></tr>
+<tr><th>區塊</th><th>作用</th><th>調校點</th><th>若設錯</th></tr>
+<tr><td><strong>Black Level</strong></td><td>扣暗電流基準</td><td>黑位 offset</td><td>暗部偏灰/偏黑</td></tr>
+<tr><td><strong>Lens Shading</strong></td><td>補償鏡頭暗角</td><td>LSC 網格</td><td>四周暗/偏色</td></tr>
+<tr><td><strong>Demosaic</strong></td><td>Bayer→全彩</td><td>假色抑制</td><td>鋸齒/假色</td></tr>
+<tr><td><strong>降噪</strong></td><td>抑制亮度/彩色雜訊</td><td>NR 強度</td><td>細節糊</td></tr>
+<tr><td><strong>CCM</strong></td><td>色彩空間校正</td><td>3×3 矩陣</td><td>色彩偏差</td></tr>
+<tr><td><strong>Gamma</strong></td><td>亮度對比曲線</td><td>gamma/對比</td><td>亮暗階調異常</td></tr>
 </table>
-<div class="callout"><strong>重要觀念：</strong>ISP 每個區塊都是「可調參數」，而這些參數集中在一份 <strong>tuning 檔</strong>裡——RPi 上是 libcamera 的 <code>.json</code>（單元 14 詳述）。</div>
 
-<h2>RPi5 的硬體 ISP</h2>
-<p>RPi5 的 ISP 是 SoC 內硬體單元，由 libcamera 的 IPA 驅動。它支援 HDR（多幀）、統計資料回饋給 AE/AWB 演算法——這些統計正是調校的「輸入資料」。</p>
+<h2>RPi5 硬體 ISP 與統計回饋</h2>
+<ul>
+<li>RPi5 ISP 是 SoC 硬體單元，由 libcamera IPA 驅動。</li>
+<li>ISP 產出<strong>統計資料</strong>（亮度直方圖、色彩平均、AE 曝光值）回饋給 AE/AWB 演算法。</li>
+<li><strong>這些統計就是調校的「輸入資料」</strong>——沒有統計，AE/AWB 就是瞎猜。</li>
+</ul>
+<div class="demo-block"><div class="demo-label">看 AE 統計（libcamera 暴露）</div><pre>rpicam-still --info --output /dev/null    <span class="hl-c"># 印出控制與統計摘要</span></pre></div>
+<div class="callout"><strong>調校核心：</strong>先確認「黑位正確 → LSC 補償 → CCM 對色 → gamma 對比」依序來，不要跳著調。</div>
 
 
   <div class="outcome">
     <strong>看完這單元你應該能說出：</strong>
-    <ul><li>ISP 管線七大區塊與順序。</li><li>每個區塊對應的調校點。</li><li>tuning 檔在調校流程中的角色。</li><li>RPi5 硬體 ISP 與統計回饋機制。</li></ul>
+    <ul><li>ISP 六區塊的作用與調校對應。</li><li>每區塊「設錯的症狀」。</li><li>ISP 統計如何回饋給 AE/AWB。</li><li>調校的依序原則。</li></ul>
   </div>
 
   <h2>延伸閱讀</h2>
   <ul>
     <li>下一篇：<a href="unit-08.html">單元 8 · RAW 擷取與資料格式</a>。</li>
-<li><a href="https://libcamera.org/ipa.html" rel="noopener">libcamera IPA 文件</a></li>
+<li><a href="https://libcamera.org/ipa.html" rel="noopener">libcamera IPA</a></li>
     <li><a href="../learning-path.html">學習路線</a>：複習全站</li>
   </ul>
 
@@ -64,7 +68,7 @@
 </div>
 
 <footer>這是 Raspberry Pi 5 感測器影像調適繁中教學站 · 由 OpenCode 建置<br>
-  <span class="footer-license">本站教學內容（繁體中文解說）為本站原創，採 CC-BY-4.0；技術名詞與 register 範例引用自 <a href="https://www.raspberrypi.com/documentation/" rel="noopener">Raspberry Pi 官方文件</a>、<a href="https://libcamera.org/" rel="noopener">libcamera</a> 與公開感測器資料。</span></footer>
+  <span class="footer-license">本站教學內容（繁體中文解說）為本站原創，採 CC-BY-4.0；register 與指令引用自 <a href="https://www.raspberrypi.com/documentation/" rel="noopener">Raspberry Pi 官方文件</a>、<a href="https://libcamera.org/" rel="noopener">libcamera</a> 與公開感測器資料。</span></footer>
 
 </div>
 </body>

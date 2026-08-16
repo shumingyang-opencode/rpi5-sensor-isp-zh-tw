@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>單元 5 · 第一個鏡頭跑起來 · Raspberry Pi 5 感測器影像調適繁中教學站</title>
-<meta name="description" content="rpicam-apps 拍照與串流">
+<meta name="description" content="rpicam-apps 完整流程、RAW 擷取">
 <link rel="icon" type="image/svg+xml" href="../assets/favicon.svg">
 <link rel="stylesheet" href="../assets/site.css">
 </head>
@@ -13,7 +13,7 @@
 
 <header>
   <h1>單元 5 · 第一個鏡頭跑起來</h1>
-  <p class="subtitle">rpicam-apps 拍照與串流</p>
+  <p class="subtitle">rpicam-apps 完整流程、RAW 擷取</p>
 </header>
 
 <nav class="topnav">  <a href="../index.html">首頁</a>
@@ -25,31 +25,48 @@
 <div class="back-link"><a href="index.html">← 單元教學</a></div>
 
 <div class="guide">
-<h2>啟用相機</h2>
-<div class="demo-block"><div class="demo-label">RPi5 設定</div><pre>sudo raspi-config       <span class="hl-c"># Interface Options → Camera → Enable</span>
+<h2>步驟 0：啟用相機並重啟</h2>
+<div class="demo-block"><div class="demo-label">啟用</div><pre>sudo raspi-config        <span class="hl-c"># Interface Options → Camera → Enable</span>
 sudo reboot</pre></div>
 
-<h2>rpicam-apps 一組指令</h2>
-<div class="demo-block"><div class="demo-label">預覽 / 拍照 / 錄影</div><pre>rpicam-hello                 <span class="hl-c"># 即時預覽（確認相機有畫面）</span>
-rpicam-still -o photo.jpg    <span class="hl-c"># 拍照</span>
-rpicam-vid -o video.h264     <span class="hl-c"># 錄影</span></pre></div>
-<div class="callout"><strong>第一步驗證：</strong>跑 <code>rpicam-hello</code> 能看到畫面，代表 sensor→ISP→輸出整條鏈路是通的——後續 tuning 才有意義。</div>
+<h2>步驟 1：確認相機被偵測</h2>
+<div class="demo-block"><div class="demo-label">列出相機</div><pre>rpicam-hello --list-cameras
+<span class="hl-c"># 預期看到 ov5647，含支援的 mode（如 2592x1944 10-bit）</span></pre></div>
+<div class="callout warn"><strong>若沒列出：</strong>排線？overlay？<code>dmesg | grep -i -E "ov5647|unicam|error"</code> 找線索（單元 6）。</div>
 
-<h2>RAW 輸出（為調校做準備）</h2>
-<div class="demo-block"><div class="demo-label">同時存 RAW + 處理後影像</div><pre>rpicam-still --raw -o shot.jpg   <span class="hl-c"># 額外產生 .dng（RAW 檔）</span></pre></div>
+<h2>步驟 2：即時預覽（確認鏈路）</h2>
+<div class="demo-block"><div class="demo-label">rpicam-hello</div><pre>rpicam-hello -t 10s     <span class="hl-c"># 預覽 10 秒；看到畫面=感測器→ISP→輸出通</span></pre></div>
 
-<h2>Python：picamera2</h2>
-<div class="demo-block"><div class="demo-label">picamera2 最小範例</div><pre><span class="hl-k">from</span> picamera2 <span class="hl-k">import</span> Picamera2
+<h2>步驟 3：拍照與錄影</h2>
+<div class="demo-block"><div class="demo-label">still / vid / raw</div><pre>rpicam-still -o shot.jpg                    <span class="hl-c"># JPEG</span>
+rpicam-still --raw -o shot.dng              <span class="hl-c"># 同時輸出 RAW（.dng）</span>
+rpicam-vid -t 5s -o video.h264             <span class="hl-c"># H.264 錄 5 秒</span></pre></div>
+<div class="callout"><strong>RAW 的重要性：</strong><code>--raw</code> 會同時存 <code>.dng</code>（Bayer RAW）。影像品質分析（黑位、雜訊、Bayer order）一定要回到 RAW。</div>
+
+<h2>步驟 4：Python（picamera2）</h2>
+<div class="demo-block"><div class="demo-label">拍照 + 設定曝光</div><pre>from picamera2 import Picamera2
+
 picam2 = Picamera2()
-still = picam2.still_configuration()
-picam2.configure(still)
+cfg = picam2.create_still_configuration()
+picam2.configure(cfg)
+picam2.set_controls({"ExposureTime": 20000, "AnalogueGain": 1.5})
 picam2.start()
-picam2.capture_file("shot.jpg")</pre></div>
+picam2.capture_file("shot.jpg")
+picam2.stop()</pre></div>
+
+<h2>常見失敗快速對照</h2>
+<table>
+<tr><th>症狀</th><th>方向</th></tr>
+<tr><td><code>--list-cameras</code> 空</td><td>overlay / 排線 / dmesg</td></tr>
+<tr><td>預覽全黑</td><td>曝光/增益為 0？鏡頭蓋？自動曝光未啟動</td></tr>
+<tr><td>畫面有雜訊條</td><td>banding → 曝光與電源頻率（單元 10）</td></tr>
+<tr><td>顏色全錯</td><td>Bayer order / 白平衡（單元 8、11）</td></tr>
+</table>
 
 
   <div class="outcome">
     <strong>看完這單元你應該能說出：</strong>
-    <ul><li>用 raspi-config 啟用相機。</li><li>rpicam-hello/still/vid 各自用途。</li><li>如何取得 RAW（.dng）供調校。</li><li>picamera2 最小範例結構。</li></ul>
+    <ul><li>啟用相機並用 --list-cameras 確認偵測。</li><li>rpicam-hello/still/vid 的完整用法。</li><li>用 --raw 取得 DNG 供調校。</li><li>picamera2 控制曝光拍照。</li><li>四種常見失敗的快速方向。</li></ul>
   </div>
 
   <h2>延伸閱讀</h2>
@@ -60,13 +77,13 @@ picam2.capture_file("shot.jpg")</pre></div>
   </ul>
 
   <div class="next-prev">
-    <a href="unit-04.html"><div class="np-label">← 上一篇</div><div class="np-name">單元 4 · 平台相機框架與驅動</div></a>
+    <a href="unit-04.html"><div class="np-label">← 上一篇</div><div class="np-name">單元 4 · 相機框架與驅動</div></a>
     <a class="np-next" href="unit-06.html"><div class="np-label">下一篇 →</div><div class="np-name">單元 6 · Sensor Bring-up 與除錯</div></a>
   </div>
 </div>
 
 <footer>這是 Raspberry Pi 5 感測器影像調適繁中教學站 · 由 OpenCode 建置<br>
-  <span class="footer-license">本站教學內容（繁體中文解說）為本站原創，採 CC-BY-4.0；技術名詞與 register 範例引用自 <a href="https://www.raspberrypi.com/documentation/" rel="noopener">Raspberry Pi 官方文件</a>、<a href="https://libcamera.org/" rel="noopener">libcamera</a> 與公開感測器資料。</span></footer>
+  <span class="footer-license">本站教學內容（繁體中文解說）為本站原創，採 CC-BY-4.0；register 與指令引用自 <a href="https://www.raspberrypi.com/documentation/" rel="noopener">Raspberry Pi 官方文件</a>、<a href="https://libcamera.org/" rel="noopener">libcamera</a> 與公開感測器資料。</span></footer>
 
 </div>
 </body>

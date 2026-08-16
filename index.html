@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>rpi5-sensor-isp-zh-tw · Raspberry Pi 5 感測器影像調適繁中教學站</title>
-<meta name="description" content="<strong>Raspberry Pi 5</strong> 擁有可完整控制的相機堆疊——libcamera、rpicam-apps 與硬體 ISP，是學習 <strong>sensor 影像調適（ISP tuning）</strong>最親民的平台。本站在「讓影像品質變好」的實務視角下，帶你從感測器基礎一路到 AE/AWB/降噪調校。">
+<meta name="description" content="<strong>Raspberry Pi 5</strong> 是少數「看得見每一層」的相機平台。本課程以 <span class='ov'>OV5647</span> 為主例，用<strong>可照做的指令、register 表與除錯決策樹</strong>，帶你把感測器從上電一路調校到畫質達標。">
 <link rel="icon" type="image/svg+xml" href="assets/favicon.svg">
 <link rel="stylesheet" href="assets/site.css">
 </head>
@@ -13,9 +13,9 @@
 
 <header>
   <h1>Raspberry Pi 5 感測器影像調適繁中教學站</h1>
-  <p class="subtitle">從感測器基礎到影像品質調適，中英對照的 16 單元教學</p>
-  <p class="badge-line">16 單元 · Sensor Bring-up / ISP / 影像調校 · 內容 CC-BY-4.0</p>
-  <p class="tagline"><strong>Raspberry Pi 5</strong> 擁有可完整控制的相機堆疊——libcamera、rpicam-apps 與硬體 ISP，是學習 <strong>sensor 影像調適（ISP tuning）</strong>最親民的平台。本站在「讓影像品質變好」的實務視角下，帶你從感測器基礎一路到 AE/AWB/降噪調校。</p>
+  <p class="subtitle">手把手：初始化感測器 → Streaming → 影像調校</p>
+  <p class="badge-line">16 單元 · 深度實作 · Sensor Bring-up / ISP / 調校 · 內容 CC-BY-4.0</p>
+  <p class="tagline"><strong>Raspberry Pi 5</strong> 是少數「看得見每一層」的相機平台。本課程以 <span class='ov'>OV5647</span> 為主例，用<strong>可照做的指令、register 表與除錯決策樹</strong>，帶你把感測器從上電一路調校到畫質達標。</p>
 </header>
 
 <nav class="topnav">
@@ -45,7 +45,7 @@
     <div class="ec-icon">📚</div>
     <div class="ec-title">單元教學</div>
     <div class="ec-en">Lessons</div>
-    <div class="ec-desc">16 個單元循序漸進，含 5 個影像品質調校專章與跨平台比較。</div>
+    <div class="ec-desc">16 個深度實作單元，含 5 個影像調校專章與跨平台比較。</div>
     <div class="ec-pill"><span class="c-tag">16 單元</span><span class="c-tag">中英對照</span></div>
   </a>
   <a class="entry-card" href="about.html">
@@ -59,13 +59,13 @@
 
 <div class="guide" style="margin-top:2.6rem;">
   <h2>為什麼學這套課程？</h2>
-  <p><strong>sensor 影像調適</strong>（image sensor tuning / ISP tuning）是讓「畫面從能用變成好看」的關鍵工程：感測器送出的 RAW 必須經過曝光、白平衡、色彩、降噪等一系列校正，才符合人眼期待。Raspberry Pi 5 因為<b>硬體 ISP + 開源 libcamera</b>，是少數能『看到每個調校環節』的入門平台。</p>
-<p>本課程以 <strong>OmniVision（OV）感測器</strong>為主要實例（OV5647、OV5640、OV9281），用中英對照的方式，帶你建立完整的 sensor→ISP→影像品質工作流。</p>
+  <p><strong>sensor 影像調適</strong>最難的不是概念，而是<strong>動手做</strong>。RPi5 的 libcamera + 硬體 ISP 讓你能一步步看到：register 寫入 → 出圖 → 統計回饋 → tuning 生效。</p>
+<p>本課程每一單元都以「<strong>你要執行的動作</strong>」為核心：給定完整指令、預期輸出、以及失敗時的排查路徑。學完你將能獨立完成一顆 OV 感測器的初始化、串流與調校。</p>
 </div>
 
 <footer>
   這是 Raspberry Pi 5 感測器影像調適繁中教學站 · 由 OpenCode 建置<br>
-  <span class="footer-license">本站教學內容（繁體中文解說）為本站原創，採 CC-BY-4.0；技術名詞與 register 範例引用自 <a href="https://www.raspberrypi.com/documentation/" rel="noopener">Raspberry Pi 官方文件</a>、<a href="https://libcamera.org/" rel="noopener">libcamera</a> 與公開感測器資料。</span>
+  <span class="footer-license">本站教學內容（繁體中文解說）為本站原創，採 CC-BY-4.0；register 與指令引用自 <a href="https://www.raspberrypi.com/documentation/" rel="noopener">Raspberry Pi 官方文件</a>、<a href="https://libcamera.org/" rel="noopener">libcamera</a> 與公開感測器資料。</span>
 </footer>
 
 </div>

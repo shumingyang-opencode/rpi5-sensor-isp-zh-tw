@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>單元 1 · 平台相機生態總覽 · Raspberry Pi 5 感測器影像調適繁中教學站</title>
-<meta name="description" content="CSI-2、libcamera、支援的 OV 感測器">
+<meta name="description" content="CSI-2、libcamera 堆疊、感測器選擇">
 <link rel="icon" type="image/svg+xml" href="../assets/favicon.svg">
 <link rel="stylesheet" href="../assets/site.css">
 </head>
@@ -13,7 +13,7 @@
 
 <header>
   <h1>單元 1 · 平台相機生態總覽</h1>
-  <p class="subtitle">CSI-2、libcamera、支援的 OV 感測器</p>
+  <p class="subtitle">CSI-2、libcamera 堆疊、感測器選擇</p>
 </header>
 
 <nav class="topnav">  <a href="../index.html">首頁</a>
@@ -25,40 +25,47 @@
 <div class="back-link"><a href="index.html">← 單元教學</a></div>
 
 <div class="guide">
-<h2>硬體介面：CSI-2</h2>
-<p>Raspberry Pi 5 配備 <strong>2 組 CSI-2 相機連接器</strong>（Camera 1 / Camera 0，各 4-lane MIPI CSI-2），可接官方 Camera Module 或客製感測器板。</p>
-<div class="pipe"><span class="step">感測器</span><span class="arr">→</span><span class="step">MIPI CSI-2（D-PHY）</span><span class="arr">→</span><span class="step">unicam（CSI 接收器）</span><span class="arr">→</span><span class="step">硬體 ISP</span><span class="arr">→</span><span class="step">輸出</span></div>
-<p class="hint">RPi5 的 BCM2712 SoC 內建相機前端（CFE/unicam）與硬體 ISP，不靠 CPU 跑處理。</p>
+<h2>硬體介面：CSI-2 與連接器</h2>
+<p>Raspberry Pi 5 有 <strong>2 組 15-pin 相機連接器</strong>（Camera 1 / Camera 0），各走 <strong>MIPI CSI-2（4-lane D-PHY）</strong>。接線是固定的：</p>
+<div class="file-tree">Camera 連接器（15-pin，由外而內）
+├── 1 GND     2 GND
+├── 3 CAM_GPIO  4 MIPI_D0P
+├── 5 MIPI_D0N  6 MIPI_D1P
+├── 7 MIPI_D1N  8 GND
+├── 9 MIPI_D2P  10 MIPI_D2N
+├── 11 GND     12 MIPI_D3P
+├── 13 MIPI_D3N 14 GND
+└── 15 CAMERA_CLOCK（XCLK）</div>
+<div class="callout warn"><strong>先檢查：</strong>FPC 排線的金手指方向、插入深度——「相機沒畫面」有一半是排線沒插好。插好後 <code>dmesg | grep -i unicam</code> 應無錯誤。</div>
 
-<h2>軟體堆疊：libcamera 為核心</h2>
+<h2>軟體堆疊四層</h2>
+<div class="pipe"><span class="step">應用：rpicam-apps / picamera2</span><span class="arr">→</span><span class="step">libcamera（管線/控制/tuning）</span><span class="arr">→</span><span class="step">內核：unicam + 感測器驅動</span><span class="arr">→</span><span class="step">硬體：感測器 → ISP</span></div>
 <table>
-<tr><th>層級</th><th>元件</th><th>用途</th></tr>
-<tr><td>應用層</td><td><code>rpicam-apps</code> / <code>picamera2</code></td><td>拍照、錄影、Python 控制</td></tr>
-<tr><td>框架</td><td><strong>libcamera</strong></td><td>開源相機框架：管線、控制、tuning</td></tr>
-<tr><td>內核驅動</td><td><code>unicam</code> + 感測器驅動（如 <code>ov5647.c</code>）</td><td>CSI-2 接收與感測器 register 控制</td></tr>
-<tr><td>硬體</td><td>感測器（OV）→ ISP</td><td>RAW 擷取與品質校正</td></tr>
+<tr><th>層</th><th>元件</th><th>你操作什麼</th></tr>
+<tr><td>應用</td><td><code>rpicam-still</code>、<code>picamera2</code></td><td>拍照、錄影、控制</td></tr>
+<tr><td>框架</td><td><strong>libcamera</strong></td><td>設定曝光/增益/白平衡、載入 tuning</td></tr>
+<tr><td>內核</td><td><code>unicam</code> + <code>ov5647.c</code></td><td>CSI 接收、感測器 register</td></tr>
+<tr><td>硬體</td><td>OV5647 → BCM2712 ISP</td><td>RAW 產出與校正</td></tr>
 </table>
-<div class="callout"><strong>重點：</strong>libcamera 把「感測器控制」與「ISP tuning」統一成可設定的 framework——這正是學習影像調適的理想環境。</div>
 
-<h2>支援的 OmniVision 感測器</h2>
-<table class="reg-table">
-<tr><th>感測器</th><th>解析度</th><th>快門</th><th>RPi 上用途</th></tr>
-<tr><td class="ov">OV5647</td><td>5 MP</td><td>Rolling</td><td>官方 Camera Module v1</td></tr>
-<tr><td class="ov">OV5640</td><td>5 MP</td><td>Rolling</td><td>常見客製板 / 教育板</td></tr>
-<tr><td class="ov">OV9281</td><td>1 MP</td><td><strong>Global</strong></td><td>工業 / 機器視覺</td></tr>
-</table>
-<p class="hint">本站以 <span class="ov">OV5647</span> 為主例（官方模組、文件最齊），其原理可平移至 OV5640/OV9281。</p>
+<h2>選感測器板的三個問題</h2>
+<ol>
+<li><strong>RPi 官方還是客製？</strong>官方 Camera Module v1 = OV5647，免 overlay 設定。</li>
+<li><strong>排線相容？</strong>15-pin 標準接口即可。</li>
+<li><strong>驅動支援？</strong>看 <code>drivers/media/i2c/</code> 有沒有對應驅動（ov5647/ov5640/ov9281 都有）。</li>
+</ol>
+<div class="callout"><strong>本站主例：</strong>官方 Camera Module v1（OV5647，5MP）。它的 register 與流程公開，最適合當教材。</div>
 
 
   <div class="outcome">
     <strong>看完這單元你應該能說出：</strong>
-    <ul><li>RPi5 的相機硬體介面與 2 組 CSI-2 連接器。</li><li>libcamera 堆疊的四層分工。</li><li>至少三個可在 RPi5 上使用的 OmniVision 感測器。</li><li>為什麼 libcamera 適合學習影像調適。</li></ul>
+    <ul><li>CSI-2 連接器 15-pin 接法與常見插線錯誤。</li><li>libcamera 四層堆疊與每一層的操作對象。</li><li>選感測器板的三個問題。</li><li>為什麼用 OV5647 當主例。</li></ul>
   </div>
 
   <h2>延伸閱讀</h2>
   <ul>
     <li>下一篇：<a href="unit-02.html">單元 2 · 影像感測器基礎</a>。</li>
-<li><a href="https://www.raspberrypi.com/documentation/computers/camera_software.html" rel="noopener">Raspberry Pi 相機軟體文件</a></li>
+<li><a href="https://www.raspberrypi.com/documentation/computers/camera_software.html" rel="noopener">RPi 相機軟體文件</a></li>
     <li><a href="../learning-path.html">學習路線</a>：複習全站</li>
   </ul>
 
@@ -69,7 +76,7 @@
 </div>
 
 <footer>這是 Raspberry Pi 5 感測器影像調適繁中教學站 · 由 OpenCode 建置<br>
-  <span class="footer-license">本站教學內容（繁體中文解說）為本站原創，採 CC-BY-4.0；技術名詞與 register 範例引用自 <a href="https://www.raspberrypi.com/documentation/" rel="noopener">Raspberry Pi 官方文件</a>、<a href="https://libcamera.org/" rel="noopener">libcamera</a> 與公開感測器資料。</span></footer>
+  <span class="footer-license">本站教學內容（繁體中文解說）為本站原創，採 CC-BY-4.0；register 與指令引用自 <a href="https://www.raspberrypi.com/documentation/" rel="noopener">Raspberry Pi 官方文件</a>、<a href="https://libcamera.org/" rel="noopener">libcamera</a> 與公開感測器資料。</span></footer>
 
 </div>
 </body>

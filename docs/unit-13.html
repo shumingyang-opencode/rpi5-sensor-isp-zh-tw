@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>單元 13 · 雜訊與降噪 · Raspberry Pi 5 感測器影像調適繁中教學站</title>
-<meta name="description" content="NR 參數與取捨">
+<meta name="description" content="來源、NR 調校、DPC">
 <link rel="icon" type="image/svg+xml" href="../assets/favicon.svg">
 <link rel="stylesheet" href="../assets/site.css">
 </head>
@@ -13,7 +13,7 @@
 
 <header>
   <h1>單元 13 · 雜訊與降噪</h1>
-  <p class="subtitle">NR 參數與取捨</p>
+  <p class="subtitle">來源、NR 調校、DPC</p>
 </header>
 
 <nav class="topnav">  <a href="../index.html">首頁</a>
@@ -25,35 +25,38 @@
 <div class="back-link"><a href="index.html">← 單元教學</a></div>
 
 <div class="guide">
-<h2>雜訊從哪來</h2>
+<h2>雜訊來源</h2>
 <table>
 <tr><th>雜訊</th><th>來源</th><th>特性</th></tr>
-<tr><td><strong>光子 shot noise</strong></td><td>光子隨機性</td><td>低光時最明顯</td></tr>
-<tr><td><strong>read noise</strong></td><td>讀出電路</td><td>與曝光無關的底噪</td></tr>
-<tr><td><strong>暗電流（dark current）</strong></td><td>高溫/長曝光</td><td>越熱越嚴重</td></tr>
-<tr><td><strong>hot pixel</strong></td><td>缺陷像素</td><td>固定亮點</td></tr>
+<tr><td>shot noise</td><td>光子隨機性</td><td>低光最明顯（σ ∝ √光）</td></tr>
+<tr><td>read noise</td><td>讀出電路</td><td>底噪，與曝光無關</td></tr>
+<tr><td>dark current</td><td>高溫/長曝光</td><td>越熱越嚴重</td></tr>
+<tr><td>hot pixel</td><td>缺陷像素</td><td>固定亮點</td></tr>
 </table>
 
-<h2>降噪的策略與取捨</h2>
-<div class="callout warn"><strong>鐵律：</strong>降噪的敵人永遠是「細節」。NR 調太強，畫面變「塑膠感」——調校就是找<strong>雜訊 vs 細節</strong>的平衡點。</div>
+<h2>實作：測量雜訊</h2>
+<div class="demo-block"><div class="demo-label">測黑框與灰框的標準差</div><pre>python3 - <<'EOF'
+# 拍 black.dng（蓋鏡頭）與 gray 灰卡
+# 用 rawpy 讀取，算 ROI 的 mean/std → σ 即雜訊指標
+EOF</pre></div>
+<p class="hint">σ 對照增益的曲線，幫你決定「增益到哪一格前」可接受。</p>
+
+<h2>libcamera 降噪調校</h2>
+<div class="demo-block"><div class="demo-label">tuning 檔的 Denoise 區塊（示意）</div><pre>{ "Denoise":  { "strength": 0.3, "sharpen": 0.5 } }</pre></div>
 <ul>
-<li><strong>亮度降噪</strong>：影響畫面整體，最容易過度。</li>
-<li><strong>彩色降噪</strong>：抑制色斑（chroma noise），可稍強。</li>
-<li><strong>時間降噪（temporal NR）</strong>：多幀平均，換幀率。</li>
+<li><strong>亮度降噪</strong>：影響整體細節。</li>
+<li><strong>彩色降噪</strong>：抑制色斑，可稍強。</li>
+<li><strong>取捨：</strong>NR 太強 → 「塑膠感」。降噪與細節永遠是平衡。</li>
 </ul>
 
-<h2>RPi libcamera 的降噪調校</h2>
-<div class="demo-block"><div class="demo-label">tuning 檔中的降噪區塊（示意）</div><pre>{ "ColourDenoise":  { "strength": 0.5, ... },
-  "Denoise":        { "strength": 0.3, ... } }</pre></div>
-<p class="hint">rpicam-apps 提供即時切換強度以 A/B 比較的介面。</p>
-
-<h2>感測器端：缺陷像素校正（DPC）</h2>
-<p>OV 感測器多有內建 <strong>DPC（defect pixel correction）</strong>，可標定並替換缺陷像素。感測器端先修掉 hot pixel，ISP 端再做 NR，效果最佳。</p>
+<h2>感測器端 DPC</h2>
+<p>OV5647 內建 <strong>DPC（缺陷像素校正）</strong>，可先修掉 hot pixel。流程：感測器端先 DPC → 平台 ISP 再 NR，效果最佳。</p>
+<div class="callout"><strong>調校紀律：</strong>先確認增益沒拉太高（源頭），再讓 NR 收尾——否則 NR 只是「擦更髒的畫面」。</div>
 
 
   <div class="outcome">
     <strong>看完這單元你應該能說出：</strong>
-    <ul><li>四種雜訊來源與特性。</li><li>降噪 vs 細節的取捨原則。</li><li>亮度/彩色/時間降噪的差異。</li><li>感測器端 DPC 與 ISP NR 的分工。</li></ul>
+    <ul><li>四種雜訊來源與特性。</li><li>用 σ 測量雜訊的方法。</li><li>libcamera NR 調校與取捨。</li><li>DPC 與 NR 的分工。</li></ul>
   </div>
 
   <h2>延伸閱讀</h2>
@@ -70,7 +73,7 @@
 </div>
 
 <footer>這是 Raspberry Pi 5 感測器影像調適繁中教學站 · 由 OpenCode 建置<br>
-  <span class="footer-license">本站教學內容（繁體中文解說）為本站原創，採 CC-BY-4.0；技術名詞與 register 範例引用自 <a href="https://www.raspberrypi.com/documentation/" rel="noopener">Raspberry Pi 官方文件</a>、<a href="https://libcamera.org/" rel="noopener">libcamera</a> 與公開感測器資料。</span></footer>
+  <span class="footer-license">本站教學內容（繁體中文解說）為本站原創，採 CC-BY-4.0；register 與指令引用自 <a href="https://www.raspberrypi.com/documentation/" rel="noopener">Raspberry Pi 官方文件</a>、<a href="https://libcamera.org/" rel="noopener">libcamera</a> 與公開感測器資料。</span></footer>
 
 </div>
 </body>
