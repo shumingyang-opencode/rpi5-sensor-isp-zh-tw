@@ -30,11 +30,22 @@
 <div class="pipe"><span class="step">場景色溫（如 3000K 黃光）</span><span class="arr">→</span><span class="step">R/G/B gains</span><span class="arr">→</span><span class="step">白回白</span></div>
 <p>人眼會適應色溫，感測器不會。AWB 演算法算出一組 gains，讓中性色（灰/白）在中性。</p>
 <ul>
-<li><strong>Grey world</strong>：假設場景平均是灰 → 調到 RGB 平均相等。</li>
-<li><strong>libcamera Awb 演算法</strong>：依 ISP 統計（灰點偵測）自動算 gains，比 grey world 穩。</li>
+<li><strong>Grey world</strong>：假設場景平均是灰 → 調到 RGB 平均相等（對彩色場景不準）。</li>
+<li><strong>libcamera Awb 演算法</strong>：依 ISP 統計的<strong>灰點偵測</strong>自動算 gains，比 grey world 穩。</li>
 </ul>
 
-<h2>11.2 灰卡校正標準程序（實作）</h2>
+<h2>11.2 色溫與人眼的關係</h2>
+<table>
+<tr><th>光源</th><th>色溫（K）</th><th>視覺</th><th>AWB 傾向</th></tr>
+<tr><td>燭光</td><td>~1900</td><td>很黃</td><td>提升 R gain</td></tr>
+<tr><td>白熾燈</td><td>~2700–3200</td><td>黃</td><td>提升 R gain</td></tr>
+<tr><td>日光燈</td><td>~4000–5000</td><td>中性偏冷</td><td>微調</td></tr>
+<tr><td>日光</td><td>~5500–6500</td><td>中性</td><td>gains ≈ 1</td></tr>
+<tr><td>陰影/陰天</td><td>~7000+</td><td>藍</td><td>提升 B gain</td></tr>
+</table>
+<div class="callout"><strong>工程直覺：</strong>低色溫補 R、高色溫補 B——這是 AWB gains 的方向。超過感測器/鏡頭的 AWB 範圍會「色偏無解」，需外加濾鏡或光源校正。</div>
+
+<h2>11.3 灰卡校正標準程序（實作）</h2>
 <ol>
 <li>放灰卡（18% 灰卡或積分球），固定光源與曝光。</li>
 <li>關 AWB，手動調 RedGain/BlueGain。</li>
@@ -49,14 +60,14 @@
 })</pre></div>
 <div class="callout warn"><strong>調適陷阱：</strong>固定色溫時，若 gains 與色溫不匹配，白會偏黃/偏藍——用灰卡校正最準，不要靠「看起來」。</div>
 
-<h2>11.3 CCM：色彩校正矩陣</h2>
+<h2>11.4 CCM：色彩校正矩陣</h2>
 <p>感測器的色彩響應不完美（濾鏡串擾、響應曲線偏移），用 <strong>3×3 矩陣</strong>校正到標準色彩空間（sRGB/Rec.709）。<strong>分色溫</strong>兩套（低色溫/高色溫）因為感測器響應隨光譜不同。</p>
 <div class="demo-block"><div class="demo-label">CCM 示意（對角>1，副對角負）</div><pre>{ {1.6, -0.3, -0.3},
   {-0.2,  1.4, -0.2},
   {-0.1, -0.3,  1.4} }</pre></div>
 <div class="callout warn"><strong>陷阱：</strong>CCM 過頭 → 過飽和、色階斷裂（banding）；gains 與 CCM 互相影響，要一起看。先 AWB 中性，再 CCM 定色。</div>
 
-<h2>11.4 用色卡量化算 CCM</h2>
+<h2>11.5 用色卡量化算 CCM（實作）</h2>
 <ol>
 <li>拍 <strong>X-Rite 24 色卡</strong>（固定光源/曝光）。</li>
 <li>讀每色塊 RGB（RAW 經中性 AWB）。</li>
@@ -65,13 +76,18 @@
 <li>不同色溫重複 → 建立分段 CCM。</li>
 </ol>
 <div class="demo-block"><div class="demo-label">量化驗證：ΔE</div><pre><span class="hl-c"># 用 deltaE2000 比較校正前後與目標色卡的色差</span>
-<span class="hl-c"># 目標：平均 ΔE < 3（工業常用門檻）</span></pre></div>
+python3 - <<'EOF'
+# 以 colour-science 或自寫 deltaE2000
+# 目標：平均 ΔE < 3（工業常用門檻）
+# 各色塊最大 ΔE < 6
+EOF</pre></div>
 
-<h2>11.5 色彩調校紀律</h2>
+<h2>11.6 色彩調校紀律</h2>
 <ul>
 <li>先 AWB 中性（灰卡），再 CCM 定色（色卡）。</li>
 <li>每次只改一個區塊，重新測量 ΔE。</li>
 <li>分段色溫各測一次，確保無色溫突變。</li>
+<li>記錄每組「光源 + gains + CCM」對照表，供回歸與重現。</li>
 </ul>
 
 

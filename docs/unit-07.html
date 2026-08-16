@@ -32,7 +32,7 @@
 <h2>7.2 六區塊逐一拆解（演算法 + 調校 + 設錯症狀）</h2>
 <table>
 <tr><th>區塊</th><th>演算法/作用</th><th>調校點</th><th>設錯症狀</th></tr>
-<tr><td><strong>Black Level</strong></td><td>扣除暗電流造成的黑位 offset</td><td>黑位 offset（R/Gr/Gb/B 各自）</td><td>暗部偏灰/偏黑、色彩在暗部偏移</td></tr>
+<tr><td><strong>Black Level</strong></td><td>扣除暗電流造成的黑位 offset</td><td>黑位 offset（R/Gr/Gb/B 各自）</td><td>暗部偏灰/偏黑、暗部色彩偏移</td></tr>
 <tr><td><strong>Lens Shading</strong></td><td>網格增益補償鏡頭暗角（cos⁴）</td><td>LSC 網格</td><td>四周暗、角落偏色</td></tr>
 <tr><td><strong>Demosaic</strong></td><td>Bayer→全彩（方向性插值 + 假色抑制）</td><td>假色抑制強度</td><td>鋸齒、彩色摩爾紋</td></tr>
 <tr><td><strong>降噪</strong></td><td>空間/時間降噪（亮度+彩色）</td><td>NR strength</td><td>細節糊、塑膠感</td></tr>
@@ -41,19 +41,27 @@
 </table>
 <div class="callout"><strong>調校依序原則：</strong>黑位 → LSC → CCM → gamma。跳著調會互相干擾（例：黑位沒對，LSC 網格就失真）。</div>
 
-<h2>7.3 ISP 統計回饋機制</h2>
+<h2>7.3 Demosaic 深入（最常被忽略）</h2>
+<p>demosaic 用<strong>方向性插值</strong>重建全彩：先沿邊緣方向插值，再抑制假色。常見品質問題：</p>
+<ul>
+<li><strong>彩色摩爾紋（aliasing）</strong>：細密紋理上出現彩虹 → 靠假色抑制 + 光學低通濾波。</li>
+<li><strong>鋸齒（jaggies）</strong>：斜線階梯狀 → 方向性插值品質決定。</li>
+<li><strong>亮部假色</strong>：過曝區的 R/B 通道飽和順序不同 → demosaic 後的彩色邊緣。</li>
+</ul>
+<div class="callout warn"><strong>判斷：</strong>看到「彩色摩爾紋」先別改 CCM——那是 demosaic/光學問題，不是色彩矩陣問題。用細網格測試圖驗證。</div>
+
+<h2>7.4 ISP 統計回饋機制</h2>
 <div class="pipe"><span class="step">RAW</span><span class="arr">→</span><span class="step">ISP</span><span class="arr">→</span><span class="step">統計（亮度直方圖/色彩平均/AE 值）</span><span class="arr">→</span><span class="step">IPA（AE/AWB 演算法）</span><span class="arr">→</span><span class="step">下幀控制</span></div>
 <div class="demo-block"><div class="demo-label">看控制與統計</div><pre>rpicam-still --info -o /dev/null
 <span class="hl-c"># 輸出含 ExposureTime, AnalogueGain, ColourGains, 統計摘要</span></pre></div>
-<div class="callout"><strong>調校核心：</strong>AE/AWB 演算法依「統計」調整下一幀。統計準 → 自動收斂準；統計被黑位錯誤污染 → 自動模式全歪。所以「先校正靜態區塊，再談自動」。</div>
+<div class="callout"><strong>調校核心：</strong>AE/AWB 演算法依「統計」調整下一幀。統計被黑位錯誤污染 → 自動模式全歪。所以「先校正靜態區塊，再談自動」。</div>
 
-<h2>7.4 黑位量測實作（完整）</h2>
+<h2>7.5 黑位量測實作（完整）</h2>
 <div class="demo-block"><div class="demo-label">遮鏡頭拍 RAW 統計</div><pre>rpicam-still --raw --shutter 20000 --gain 1 -o black.dng
 python3 - <<'EOF'
 import rawpy, numpy as np
 raw = rawpy.imread('black.dng').raw_image
-# 取中央 ROI（避開四周可能漏光）
-roi = raw[400:1600, 400:1600]
+roi = raw[400:1600, 400:1600]   <span class="hl-c"># 中央 ROI，避開四周漏光</span>
 print('R : %.1f' % roi[0::2,0::2].mean())
 print('Gr: %.1f' % roi[0::2,1::2].mean())
 print('Gb: %.1f' % roi[1::2,0::2].mean())
@@ -61,6 +69,13 @@ print('B : %.1f' % roi[1::2,1::2].mean())
 print('max: %d (hot pixel?)' % roi.max())
 EOF</pre></div>
 <p class="hint">四通道均值應接近（都是黑位）。若 R/Gr/Gb/B 差異明顯 → 需分通道黑位校正（tuning 的 BlackLevel 區塊）。max 異常大 → 缺陷像素（單元 13 DPC）。</p>
+
+<h2>7.6 黑位與增益的關係（進階）</h2>
+<p>黑位不是常數——隨<strong>增益與溫度</strong>改變。實務：在不同增益下各測一次黑位，確認偏移是否顯著；顯著則 tuning 需分段。</p>
+<div class="demo-block"><div class="demo-label">不同增益的黑位漂移</div><pre>for g in 1 2 4 8; do
+  rpicam-still --raw --gain $g --shutter 20000 -o b$g.dng
+  python3 -c "import rawpy,numpy as np;r=rawpy.imread('b$g.dng').raw_image;print('g=$g 黑位=%.1f'%r[400:1600,400:1600].mean())"
+done</pre></div>
 
 
   <div class="outcome">
