@@ -33,6 +33,7 @@
     <tr><td>檔案傳輸</td><td>WinSCP / <code>scp</code> / <code>sftp</code></td><td><code>scp</code> / <code>sftp</code> / <code>rsync</code></td><td>路徑用 <code>/</code></td></tr>
     <tr><td>序列埠</td><td>PuTTY / Tera Term</td><td><code>screen</code> / <code>minicom</code></td><td>確認 COM / tty 名稱</td></tr>
     <tr><td>編輯器</td><td>VS Code / Notepad++</td><td>VS Code / 內建</td><td>用 UTF-8、LF</td></tr>
+    <tr><td>（Linux 主機）</td><td>—</td><td>—</td><td>本身就是類 Linux，最省事</td></tr>
   </table>
 
   <h2>1. Windows 開發者：怎麼做</h2>
@@ -98,17 +99,43 @@ rsync -avz ./資料夾/ ubuntu@<RPi5 的 IP 或 raspberrypi.local>:/home/ubuntu/
     <li><strong>從 Windows 轉來的同事檔案</strong>：常帶 CRLF 與 BOM——接手先檢查。</li>
   </ul>
 
-  <h2>3. Windows vs macOS 差異一覽（重點）</h2>
+  <h2>2.5 Linux（Ubuntu）開發者：怎麼做</h2>
+  <p>開發機本身是 Linux（Ubuntu）時，與 Raspberry Pi 5 都是 Linux，工具幾乎零落差——這是三種主機裡<strong>最省事</strong>的。</p>
+  <h3>2.5.1 SSH 連線（內建）</h3>
+  <div class="demo-block"><div class="demo-label">Terminal</div><pre>ssh ubuntu@<RPi5 的 IP 或 raspberrypi.local>
+<span class="hl-c"># 生成金鑰（首次）</span>
+ssh-keygen -t ed25519
+ssh-copy-id ubuntu@<RPi5 的 IP 或 raspberrypi.local></pre></div>
+  <h3>2.5.2 映像燒錄</h3>
+  <div class="demo-block"><div class="demo-label">Raspberry Pi Imager（Linux）或 dd</div><pre>lsblk                                <span class="hl-c"># 找 SD 卡（通常 /dev/sdX）</span>
+sudo dd if=映像.img of=/dev/sdX bs=4M status=progress
+sync; eject /dev/sdX</pre></div>
+  <div class="callout warn"><strong>Linux 陷阱：</strong>dd 前務必 <code>lsblk</code> 確認目標磁碟（<code>/dev/sdX</code>），誤選 = 覆寫整個磁碟。Ubuntu 桌面版也會自動掛載 → 先 <code>sudo umount /dev/sdX*</code>。</div>
+  <h3>2.5.3 檔案傳輸</h3>
+  <div class="demo-block"><div class="demo-label">scp / rsync</div><pre>scp tuning.json ubuntu@<RPi5 的 IP 或 raspberrypi.local>:/home/ubuntu/
+rsync -avz ./dir/ ubuntu@<RPi5 的 IP 或 raspberrypi.local>:/home/ubuntu/dir/</pre></div>
+  <h3>2.5.4 Linux（Ubuntu）必踩雷清單</h3>
+  <ul>
+    <li><strong>金鑰權限</strong>：<code>~/.ssh</code> 要 700、私鑰 600，否則 ssh 拒絕。</li>
+    <li><strong>sudo 習慣</strong>：板上指令常需 <code>sudo</code>（i2c-tools、media-ctl 等）。</li>
+    <li><strong>換行</strong>：Linux 全部 LF，通常沒問題；從 Windows 拷來的檔要 <code>dos2unix</code>。</li>
+    <li><strong>編碼</strong>：預設 UTF-8；中文註解 OK。</li>
+    <li><strong>工具缺漏</strong>：板上可能沒裝 i2c-tools/v4l-utils → <code>sudo apt install i2c-tools v4l-utils</code>。</li>
+  </ul>
+  <div class="callout"><strong>給 Linux 開發者的額外提醒：</strong>雖然同為 Linux，但Raspberry Pi 5是 ARM 架構——需要編譯的程式要「交叉編譯」或直接在板上編，別指望 x86 的 binary 能跑。</div>
+
+  <h2>3. Windows vs macOS vs Linux 差異一覽（重點）</h2>
   <table>
-    <tr><th>面向</th><th>Windows</th><th>macOS</th><th>誰更省事</th></tr>
-    <tr><td>SSH 內建</td><td>Win10+ 內建（要開選用功能）</td><td>原生內建</td><td>macOS</td></tr>
-    <tr><td>最接近 Linux 的環境</td><td>WSL2（需安裝）</td><td>Terminal 即類 Unix</td><td>macOS 開箱即用；WSL2 後 Windows 也行</td></tr>
-    <tr><td>序列埠</td><td>需 PuTTY/Tera Term + 驅動</td><td>內建 screen，需 USB 驅動</td><td>差不多</td></tr>
-    <tr><td>燒錄風險</td><td>誤選磁碟機</td><td>dd 誤選磁碟 = 資料全毀</td><td>都用 Imager 最安全</td></tr>
-    <tr><td>換行陷阱</td><td><strong>高（CRLF 常踩）</strong></td><td>低（LF）</td><td>macOS</td></tr>
-    <tr><td>中文編碼</td><td>易遇 ANSI/Big5</td><td>預設 UTF-8</td><td>macOS</td></tr>
+    <tr><th>面向</th><th>Windows</th><th>macOS</th><th>Linux (Ubuntu)</th><th>誰更省事</th></tr>
+    <tr><td>SSH 內建</td><td>Win10+ 內建（要開選用功能）</td><td>原生內建</td><td>原生內建</td><td>Linux / macOS</td></tr>
+    <tr><td>最接近 Linux 的環境</td><td>WSL2（需安裝）</td><td>Terminal 即類 Unix</td><td><strong>就是 Linux</strong></td><td>Linux</td></tr>
+    <tr><td>序列埠</td><td>需 PuTTY + 驅動</td><td>內建 screen</td><td>內建 screen / minicom</td><td>Linux / macOS</td></tr>
+    <tr><td>燒錄風險</td><td>誤選磁碟機</td><td>dd 誤選 = 全毀</td><td>dd 誤選 = 全毀</td><td>都用 Imager 最安全</td></tr>
+    <tr><td>換行陷阱</td><td><strong>高（CRLF）</strong></td><td>低（LF）</td><td>低（LF）</td><td>Linux / macOS</td></tr>
+    <tr><td>中文編碼</td><td>易遇 ANSI/Big5</td><td>UTF-8</td><td>UTF-8</td><td>Linux / macOS</td></tr>
+    <tr><td>交叉編譯</td><td>需 WSL 或工具鏈</td><td>需工具鏈</td><td>apt 直接裝交叉工具鏈</td><td>Linux</td></tr>
   </table>
-  <div class="callout"><strong>給 Windows 開發者的最省心路徑：</strong>裝 <strong>WSL2</strong> + <strong>VS Code</strong>（Remote-SSH）——之後所有指令都跟 macOS/Linux 一致，繞開 CRLF 與路徑問題。給 macOS 開發者：直接 Terminal + scp/rsync + VS Code Remote-SSH 即可。</div>
+  <div class="callout"><strong>最省心路徑總整理：</strong>Linux 主機：直接 Terminal + scp/rsync。macOS：內建 ssh + scp + VS Code Remote-SSH。Windows：裝 <strong>WSL2</strong> + VS Code Remote-SSH——之後行為與 Linux 一致，繞開 CRLF 與路徑問題。</div>
 
   <h2>4. 與本課操作流程的銜接</h2>
   <p>建立好連線與傳檔後，後續課程的每個單元都能照做：</p>
