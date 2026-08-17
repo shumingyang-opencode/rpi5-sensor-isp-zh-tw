@@ -239,6 +239,71 @@ EOF</pre></div>
     <li>- [ ] 已建立至少兩色溫的分段 CCM 表。</li>
   </ul>
 
+
+<hr>
+<h2>第 3 輪深度加深</h2>
+
+<h3>① Register 位元級完整工作流：OV5647 AWB 手動設定</h3>
+<table>
+<tr><th>步驟</th><th>暫存器</th><th>值</th><th>位元級說明</th></tr>
+<tr><td>1. 關閉 AWB</td><td>0x5180</td><td>0xFF</td><td>bit[7]=0 AWB off（手動模式）</td></tr>
+<tr><td>2. 設定 R/G gain</td><td>0x5186</td><td>0x0400</td><td>bit[13:8]=整數, bit[7:0]=小數（4.0× R gain）</td></tr>
+<tr><td>3. 設定 B/G gain</td><td>0x5188</td><td>0x0400</td><td>同上（4.0× B gain）</td></tr>
+<tr><td>4. 設定 CCM</td><td>0x5381-0x5391</td><td>3×3 矩陣</td><td>每 2 bytes = 1 個 1.8 fixed-point 係數</td></tr>
+<tr><td>5. 驗證</td><td>read-back</td><td>—</td><td>確認 gain 和 CCM 值正確</td></tr>
+</table>
+
+<h3>② 多層疑難排解決策樹</h3>
+<p><strong>決策樹 A：AWB 偏色（色溫判斷錯誤）</strong></p>
+<pre>
+AWB 偏色
+├─ 檢查 A：色溫範圍是否在 AWB 表格涵蓋範圍
+│  ├─ 不在 → 純 LED / 特殊光源 → 加入該色溫到 AWB table
+│  └─ 在範圍內 → 繼續
+├─ 檢查 B：AWB region of interest 是否正確
+│  ├─ ROI 太小 → 白色物體不在 ROI 內 → 調整 ROI
+│  └─ 正確 → 繼續
+├─ 檢查 C：CCM 係數是否針對當前光源
+│  ├─ 不是 → 重新計算 CCM（color checker 方法）
+│  └─ 是 → 繼續
+└─ 檢查 D：是否存在 IR light 干擾
+   ├─ 是 → IR cut filter 缺失或失效 → 加裝 IR cut
+   └─ 否 → AWB 演算法需微調
+</pre>
+
+<h3>③ 量測驗證完整 SOP：色彩準確度（ΔE*ab）量測</h3>
+<ol>
+<li><strong>工具：</strong>X-Rite ColorChecker（24 色）+ rawpy + colour-science</li>
+<li><strong>步驟：</strong><br>
+  a. 在 5000K 光源下拍攝 ColorChecker<br>
+  b. 從 RAW 中提取 24 色 ROI 的平均 RGB 值<br>
+  c. 轉換到 CIE L*a*b* 色彩空間<br>
+  d. 計算每個色塊的 ΔE*ab（與 reference 值比對）</li>
+<li><strong>判讀：</strong>平均 ΔE*ab &lt;3 = 優良；3-5 = 可接受；&gt;5 = 需要調校</li>
+<li><strong>常見偏差：</strong>光源色溫不在 AWB 覆蓋範圍 → ΔE 偏高；IR 干擾 → 紅色偏高</li>
+</ol>
+
+<h3>④ 四平台終極對照</h3>
+<table>
+<tr><th>面向</th><th>RPi5</th><th>Orange Pi</th><th>Orin Nano</th><th>Thor</th><th>推薦</th></tr>
+<tr><td>AWB 演算法</td><td>libcamera 內建</td><td>簡單平均</td><td>NV 專有</td><td>NV + AI AWB</td><td>Orin/Thor 最先進</td></tr>
+<tr><td>CCM 調整</td><td>tuning YAML</td><td>手動</td><td>NV tools</td><td>Holoscan config</td><td>RPi5 最透明</td></tr>
+<tr><td>色彩精準度</td><td>中等</td><td>較差</td><td>優</td><td>優異</td><td>Orin/Thor 最佳</td></tr>
+<tr><td>手動色彩控制</td><td>✓ 有限</td><td>有限</td><td>✓ 完整</td><td>✓ 完整</td><td>Orin/Thor 最靈活</td></tr>
+</table>
+
+<h3>⑤ 完整 Bring-up 專案 Checklist</h3>
+<ul>
+<li>- [ ] 在 5000K 光源下拍攝 ColorChecker</li>
+<li>- [ ] 計算 24 色 ΔE*ab</li>
+<li>- [ ] 確認 AWB 在不同色溫下的收斂</li>
+<li>- [ ] 手動設定 AWB gain 並驗證效果</li>
+<li>- [ ] 調整 CCM 係數改善色彩精準度</li>
+<li>- [ ] 測試 IR cut filter 的效果</li>
+<li>- [ ] 整理色彩校正資料存入 tuning 文件</li>
+<li>- [ ] 建立不同光源下的 AWB/CCM 參數表</li>
+</ul>
+
   <div class="next-prev">
     <a href="unit-10.html"><div class="np-label">← 上一篇</div><div class="np-name">單元 10 · 曝光與自動曝光（AE）</div></a>
     <a class="np-next" href="unit-12.html"><div class="np-label">下一篇 →</div><div class="np-name">單元 12 · 鏡頭陰影校正（LSC）</div></a>

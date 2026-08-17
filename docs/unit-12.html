@@ -262,6 +262,72 @@ EOF</pre></div>
     <li>- [ ] 已完成一次「校正→驗證→存檔」迴圈。</li>
   </ul>
 
+
+<hr>
+<h2>第 3 輪深度加深</h2>
+
+<h3>① Register 位元級完整工作流：RPi5 LSC 表格寫入</h3>
+<table>
+<tr><th>步驟</th><th>操作</th><th>位元級說明</th></tr>
+<tr><td>1. 啟用 LSC 模組</td><td>ISP control register bit[3]=1</td><td>0x7e80200C |= 0x00000008</td></tr>
+<tr><td>2. 設定表格地址</td><td>寫入 LSC RAM base address</td><td>通常在 ISP SRAM 內固定地址</td></tr>
+<tr><td>3. 寫入 gain 表</td><td>依序寫入 R/Gr/Gb/B 四通道的 gain 值</td><td>每通道 17×13 = 221 個 1.8 fixed-point gain 值</td></tr>
+<tr><td>4. 驗證</td><td>read-back LSC table</td><td>與計算值比對</td></tr>
+</table>
+
+<h3>② 多層疑難排解決策樹</h3>
+<p><strong>決策樹 A：LSC 後暗角仍然存在</strong></p>
+<pre>
+暗角未消除
+├─ 檢查 A：LSC 是否已啟用
+│  ├─ 未啟用 → 啟用 LSC register
+│  └─ 已啟用 → 繼續
+├─ 檢查 B：LSC table 是否針對當前 lens
+│  ├─ 不是 → 重新生成 LSC table（用 flat field 拍攝）
+│  └─ 是 → 繼續
+├─ 檢查 C：lens mount 是否正確
+│  ├─ 偏心 → 重新對準 lens
+│  └─ 正確 → 繼續
+└─ 檢查 D：zoom level 是否改變
+   ├─ 是 → 不同 zoom 需要不同的 LSC table
+   └─ 否 → LSC 補償範圍不足
+</pre>
+
+<h3>③ 量測驗證完整 SOP：LSC 效果量測</h3>
+<ol>
+<li><strong>工具：</strong>Flat white target + 5000K 均勻光源</li>
+<li><strong>步驟：</strong><br>
+  a. 拍攝 flat white（曝光固定）<br>
+  b. 計算中心 10% 區域平均亮度 = center_ref<br>
+  c. 計算四角各 5% 區域平均亮度 = corner_avg<br>
+  d. 暗角比 = corner_avg / center_ref</li>
+<li><strong>校正前：</strong>暗角比 &lt;0.7 代表嚴重暗角</li>
+<li><strong>校正後：</strong>暗角比 &gt;0.9 = LSC 成功；0.8-0.9 = 可接受</li>
+<li><strong>重複：</strong>三種 zoom level 各量一次</li>
+<li><strong>常見偏差：</strong>光源不均勻 → 誤判暗角；lens 未裝好 → 非對稱暗角</li>
+</ol>
+
+<h3>④ 四平台終極對照</h3>
+<table>
+<tr><th>面向</th><th>RPi5</th><th>Orange Pi</th><th>Orin Nano</th><th>Thor</th><th>推薦</th></tr>
+<tr><td>LSC 控制</td><td>libcamera tuning</td><td>手動為主</td><td>NV 自動 + 手動</td><td>NV + AI</td><td>各有方式</td></tr>
+<tr><td>LSC table 生成</td><td>flat field 拍攝</td><td>手動計算</td><td>NV camera tools</td><td>Holoscan 自動</td><td>RPi5 最透明</td></tr>
+<tr><td>多 lens 支援</td><td>✓（不同 tuning file）</td><td>有限</td><td>✓（多 profile）</td><td>✓（自動偵測）</td><td>Thor 最智慧</td></tr>
+<tr><td>精準度</td><td>中等</td><td>較差</td><td>優</td><td>優異</td><td>Orin/Thor 最佳</td></tr>
+</table>
+
+<h3>⑤ 完整 Bring-up 專案 Checklist</h3>
+<ul>
+<li>- [ ] 準備 flat white target 與均勻光源</li>
+<li>- [ ] 拍攝 flat field 並計算初始暗角比</li>
+<li>- [ ] 生成 LSC table（依 lens 型號）</li>
+<li>- [ ] 寫入 LSC table 並啟用 LSC 模組</li>
+<li>- [ ] 驗證校正後暗角比 &gt;0.9</li>
+<li>- [ ] 在不同 zoom level 下重複驗證</li>
+<li>- [ ] 記錄 lens 型號與對應 LSC table</li>
+<li>- [ ] 整理 LSC 校正 SOP 供團隊複用</li>
+</ul>
+
   <div class="next-prev">
     <a href="unit-11.html"><div class="np-label">← 上一篇</div><div class="np-name">單元 11 · 白平衡與色彩（AWB / CCM）</div></a>
     <a class="np-next" href="unit-13.html"><div class="np-label">下一篇 →</div><div class="np-name">單元 13 · 雜訊與降噪</div></a>

@@ -232,6 +232,73 @@ EOF
     <li>- [ ] 已建立自己的「實測規格表」並存檔。</li>
   </ul>
 
+
+<hr>
+<h2>第 3 輪深度加深</h2>
+
+<h3>① Register 位元級完整工作流：OV5647 暫存器讀取驗證</h3>
+<table>
+<tr><th>步驟</th><th>指令</th><th>位元級細節</th></tr>
+<tr><td>1. 讀取 Chip ID</td><td><code>i2cget -y 1 0x3C 0x300A w</code></td><td>OV5647 chip ID 高位=0x56, 低位=0x47 → 回讀 0x5647</td></tr>
+<tr><td>2. 讀取位元深度</td><td><code>i2cget -y 1 0x3C 0x302E w</code></td><td>bit[1:0] 決定 RAW 輸出位元：0b00=10-bit, 0b01=8-bit</td></tr>
+<tr><td>3. 讀取曝光行數</td><td><code>i2cget -y 1 0x3C 0x3500 w</code> + <code>0x3501 w</code> + <code>0x3502 w</code></td><td>3-byte 曝光值：bit[19:16] | bit[15:8] | bit[7:0]，行數 = value >> 4</td></tr>
+<tr><td>4. 驗證 PLL</td><td><code>i2cget -y 1 0x3C 0x3034 w</code></td><td>bit[7:6]=PLL root divider, bit[5:4]=PLL pre-divider, bit[2:0]=sys divider</td></tr>
+</table>
+<div class="callout"><strong>重要：</strong>所有 OV5647 暫存器為 8-bit 寬度，以 16-bit 地址存取。<code>i2cget</code> 的 <code>w</code> flag 讀取 16-bit，實際只用低 8-bit。</div>
+
+<h3>② 多層疑難排解決策樹</h3>
+<p><strong>決策樹 A：Chip ID 讀取失敗（回讀 0xFF 或 0x00）</strong></p>
+<pre>
+Chip ID 異常
+├─ 檢查 A：i2cget 本身是否成功（有無 "Error"）
+│  ├─ Error: errno=5 → I2C 匯流排被佔用 → 移除 libcamera/cam 佔用
+│  └─ 正常回覆但值異常 → 繼續
+├─ 檢查 B：A09 GPIO 是否為 High（供電使能）
+│  ├─ Low → 供電 IC 未啟用 → 檢查 Raspberry Pi 電源供應（5V/2.5A+）
+│  └─ High → 繼續
+├─ 檢查 C：PWRDN 排線時序
+│  ├─ Reset GPIO 持 Low 超過 10ms → sensor 未脫離 reset
+│  └─ 時序正確 → 繼續
+└─ 檢查 D：嘗試 0x3C 與 0x78 兩個地址
+   ├─ 兩者都無回應 → 排線問題 / 感測器損壞
+   └─ 有一個回應 → 用該地址
+</pre>
+
+<h3>③ 量測驗證完整 SOP：動態範圍量測</h3>
+<ol>
+<li><strong>環境：</strong>標準光源箱 5000K、灰卡（18% 反射率）、三腳架固定</li>
+<li><strong>黑位量測：</strong>遮光蓋住鏡頭，短曝光（1ms），ISO 100 → 記錄 mean_raw = 黑位</li>
+<li><strong>飽和點量測：</strong>對準白色反射板，逐步增加曝光直至 pixel 值不再上升 → 記錄 sat_raw</li>
+<li><strong>計算：</strong>DR（dB）= 20 × log₁₀((sat_raw − black_raw) / read_noise_std)</li>
+<li><strong>重複：</strong>每增益級（ISO 100/200/400/800）各量 5 次，取平均</li>
+<li><strong>判讀：</strong>OV5647 預期 DR ≈ 60dB (10-bit)；&lt;55dB 需檢查黑位排除</li>
+<li><strong>常見偏差：</strong>未遮光量黑位 → 偏高；非 T¹/₃ 衰減器 → 飽和點偏移</li>
+</ol>
+
+<h3>④ 四平台終極對照</h3>
+<table>
+<tr><th>面向</th><th>RPi5</th><th>Orange Pi</th><th>Orin Nano</th><th>Thor</th><th>推薦</th></tr>
+<tr><td>可選感測器</td><td>OV5647/5640/9281</td><td>OV5640/IMX219 等</td><td>IMX219/477/577 等</td><td>IMX 系列 + 自有</td><td>Orin 感測器支援最廣</td></tr>
+<tr><td>位元深度</td><td>10-bit RAW</td><td>8/10-bit</td><td>10/12-bit</td><td>12/14-bit</td><td>Thor 位元深度最高</td></tr>
+<tr><td>像素技術</td><td>BSI (OV5647)</td><td>BSI</td><td>Stacked BSI</td><td>Stacked BSI</td><td>Orin/Thor 最先進</td></tr>
+<tr><td>支援 ROI / 窗口</td><td>支援 binning</td><td>部分支援</td><td>完整 ROI</td><td>完整 ROI + HDR</td><td>Orin/Thor 最靈活</td></tr>
+<tr><td>開源驅動</td><td>✓ mainline</td><td>部分</td><td>✓ kernel</td><td>✓ kernel</td><td>RPi5 + Orin 開源最好</td></tr>
+</table>
+
+<h3>⑤ 完整 Bring-up 專案 Checklist</h3>
+<ul>
+<li>- [ ] 確認感測器型號與 I2C 位址（OV5647=0x3C, OV5640=0x3C, IMX219=0x10）</li>
+<li>- [ ] 安裝 i2c-tools：<code>sudo apt install i2c-tools</code></li>
+<li>- [ ] 執行 <code>i2cdetect -y 1</code> 確認感測器地址出現</li>
+<li>- [ ] 讀取 Chip ID 暫存器確認型號正確</li>
+<li>- [ ] 遮光量測黑位（短曝光、ISO 100）</li>
+<li>- [ ] 逐步增加曝光找到飽和點</li>
+<li>- [ ] 計算動態範圍並與 datasheet 比對</li>
+<li>- [ ] 畫出 SNR vs 曝光曲線</li>
+<li>- [ ] 記錄 rolling shutter banding 特徵</li>
+<li>- [ ] 整理「實測規格表」存入專案文件夾</li>
+</ul>
+
   <div class="next-prev">
     <a href="unit-01.html"><div class="np-label">← 上一篇</div><div class="np-name">單元 1 · 平台相機生態總覽</div></a>
     <a class="np-next" href="unit-03.html"><div class="np-label">下一篇 →</div><div class="np-name">單元 3 · 感測器通訊介面</div></a>

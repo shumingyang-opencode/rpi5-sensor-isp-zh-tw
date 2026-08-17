@@ -243,6 +243,73 @@ sensor_dump        <span class="hl-c"># 完整快照，記錄下來做 bring-up 
     <li>- [ ] 已記錄本機 Camera 0/1 的 I2C bus 編號。</li>
   </ul>
 
+
+<hr>
+<h2>第 3 輪深度加深</h2>
+
+<h3>① Register 位元級完整工作流：SCCB 設定 OV5647 曝光時間</h3>
+<table>
+<tr><th>步驟</th><th>暫存器</th><th>寫入值</th><th>位元級說明</th></tr>
+<tr><td>1. 設定 AEC 高位</td><td>0x3500</td><td>0x00</td><td>bit[3:0] = 曝光 bit[19:16]</td></tr>
+<tr><td>2. 設定 AEC 中位</td><td>0x3501</td><td>0x64</td><td>bit[7:0] = 曝光 bit[15:8]，行數 = 0x064 = 100 行</td></tr>
+<tr><td>3. 設定 AEC 低位</td><td>0x3502</td><td>0x00</td><td>bit[7:4] = 曝光 bit[11:8] 的 4-bit 小數</td></tr>
+<tr><td>4. 設定 AEC 控制</td><td>0x3503</td><td>0x03</td><td>bit[0]=1 manual AEC, bit[1]=1 manual AGC</td></tr>
+</table>
+<div class="callout"><strong>SMBus vs SCCB：</strong>SCCB 是 OmniVision 私有協議，兼容 I2C 但多了三階段 write（phase2 = register, phase3 = data）。<code>i2cset</code> 可直接替代 SCCB。</div>
+
+<h3>② 多層疑難排解決策樹</h3>
+<p><strong>決策樹 A：I2C 寫入成功但感測器無反應</strong></p>
+<pre>
+I2C 寫入成功但感測器無反應
+├─ 檢查 A：確認是 SCCB 還是標準 I2C
+│  ├─ SCCB 3-phase → <code>i2cset</code> 自動處理
+│  └─ 非標準 → 需自訂 i2c driver
+├─ 檢查 B：PLL 設定是否正確（0x3034-0x3037）
+│  ├─ PLL 未鎖定 → pixel clock 為 0 → 無輸出
+│  └─ PLL 鎖定 → 繼續
+├─ 檢查 C：data lane 是否啟用（0x3000-0x3002）
+│  ├─ 未啟用 → 寫入 0x00 到 0x3000（stream on）
+│  └─ 已啟用 → 繼續
+└─ 檢查 D：MCLK 是否送達感測器
+   ├─ 無 MCLK → 外部時鐘源問題
+   └─ 有 MCLK → 感測器內部問題，嘗試 reset sequence
+</pre>
+
+<h3>③ 量測驗證完整 SOP：I2C/SCCB 通訊品質</h3>
+<ol>
+<li><strong>工具：</strong>邏輯分析儀（Saleae / Logic Pro 16）+ I2C decoder</li>
+<li><strong>接線：</strong>SCL/SDA 探棒接至 CSI connector 對應腳位</li>
+<li><strong>觸發：</strong>設定 SCL falling edge 觸發</li>
+<li><strong>量測：</strong><br>
+  a. SCL 頻率：標準 100kHz，快速 400kHz<br>
+  b. SDA rise time：預期 &lt;1000ns (100kHz) / &lt;300ns (400kHz)<br>
+  c. ACK/NACK 比率：10 次 transaction 中 NACK 次數<br>
+  d. Start/Stop 條件完整性</li>
+<li><strong>判讀：</strong>NACK &gt;1/10 = 通訊不穩；rise time 超標 = SDA pull-up 太弱</li>
+<li><strong>常見偏差：</strong>排線過長 → rise time 增加；pull-up 電阻太大 → 速率受限</li>
+</ol>
+
+<h3>④ 四平台終極對照</h3>
+<table>
+<tr><th>面向</th><th>RPi5</th><th>Orange Pi</th><th>Orin Nano</th><th>Thor</th><th>推薦</th></tr>
+<tr><td>I2C 控制器</td><td>Broadcom BCM2712, 400kHz</td><td>Allwinner, 400kHz</td><td>Tegra, 400kHz</td><td>Tegra, 1MHz+</td><td>Thor 最快</td></tr>
+<tr><td>SCCB 支援</td><td>i2cset 直接支援</td><td>i2cset</td><td>NV 驅動內建</td><td>NV 驅動內建</td><td>RPi5 最直觀</td></tr>
+<tr><td>I2C 多主機</td><td>不原生支援</td><td>有限</td><td>支援</td><td>支援</td><td>Orin+ 最佳</td></tr>
+<tr><td>debug 便利性</td><td>i2c-tools 直接用</td><td>i2c-tools</td><td>NV 自有工具</td><td>NV + Holoscan</td><td>RPi5 最易 debug</td></tr>
+</table>
+
+<h3>⑤ 完整 Bring-up 專案 Checklist</h3>
+<ul>
+<li>- [ ] 確認感測器 I2C 位址（i2cdetect -y 1）</li>
+<li>- [ ] 驗證 SCL 頻率符合感測器規格</li>
+<li>- [ ] 用邏輯分析儀擷取 10 次 I2C transaction</li>
+<li>- [ ] 確認 ACK 比率 ≥ 90%</li>
+<li>- [ ] 測試 SCCB write → read-back 一致性</li>
+<li>- [ ] 確認 MCLK 頻率（24MHz for OV5647）</li>
+<li>- [ ] 記錄 I2C bus 負載（幾顆 slave）</li>
+<li>- [ ] 測試不同 I2C 速率（100kHz vs 400kHz）穩定性</li>
+</ul>
+
   <div class="next-prev">
     <a href="unit-02.html"><div class="np-label">← 上一篇</div><div class="np-name">單元 2 · 影像感測器基礎</div></a>
     <a class="np-next" href="unit-04.html"><div class="np-label">下一篇 →</div><div class="np-name">單元 4 · 相機框架與驅動</div></a>

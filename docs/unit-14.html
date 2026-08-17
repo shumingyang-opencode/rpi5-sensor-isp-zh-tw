@@ -246,6 +246,73 @@ lowlight   2.8  0.90   3.5    FAIL (σ&gt;3.0)
     <li>- [ ] 已完成一次「改動→回歸→commit」完整循環。</li>
   </ul>
 
+
+<hr>
+<h2>第 3 輪深度加深</h2>
+
+<h3>① Register 位元級完整工作流：RPi5 ISP 銳利度控制</h3>
+<table>
+<tr><th>步驟</th><th>暫存器</th><th>操作</th><th>位元級說明</th></tr>
+<tr><td>1. 讀取 sharpening 設定</td><td>ISP tuning register block</td><td>devmem2 read</td><td>bit[7:4]=sharpening strength, bit[3:0]=threshold</td></tr>
+<tr><td>2. 調整銳利度</td><td>同上</td><td>寫入新值</td><td>strength=0xA → 中等銳利度</td></tr>
+<tr><td>3. 設定 denoise-sharpen 平衡</td><td>相鄰 register</td><td>OR bits</td><td>bit[0]=1 先 denoise 再 sharpen</td></tr>
+<tr><td>4. 驗證</td><td>read-back</td><td>—</td><td>確認設定生效</td></tr>
+</table>
+
+<h3>② 多層疑難排解決策樹</h3>
+<p><strong>決策樹 A：影像模糊（銳利度不足）</strong></p>
+<pre>
+影像模糊
+├─ 檢查 A：對焦是否正確
+│  ├─ 手動對焦 → 調整 lens position
+│  ├─ 自動對焦 → AF 算法收斂問題
+│  └─ 固定焦距 → 繼續
+├─ 檢查 B：sharpening 設定
+│  ├─ 過低 → 增加 sharpening strength
+│  ├─ 過高 → 出現 ringing → 降低 strength
+│  └─ 適中 → 繼續
+├─ 檢查 C：denoise 是否過強
+│  ├─ 是 → 降低 denoise strength
+│  └─ 否 → 繼續
+└─ 檢查 D：解析度 / downscaling 是否造成
+   ├─ 是 → 增加輸出解析度或優化 downscale 演算法
+   └─ 否 → lens 品質或 sensor 限制
+</pre>
+
+<h3>③ 量測驗證完整 SOP：MTF/銳利度量測</h3>
+<ol>
+<li><strong>工具：</strong>ISO 12233 resolution chart + rawpy + scipy</li>
+<li><strong>步驟：</strong><br>
+  a. 拍攝 ISO 12233 chart（均勻照明、三腳架）<br>
+  b. 裁切 SFR (Slanted Edge) 區域<br>
+  c. 計算 MTF curve：edge spread → line spread → Fourier → MTF<br>
+  d. 記錄 MTF10（10% contrast 對應的空間頻率）</li>
+<li><strong>判讀：</strong>MTF10 &gt;0.5 LP/pixel = 優良；0.3-0.5 = 中等；&lt;0.3 = 模糊</li>
+<li><strong>重複：</strong>三種 sharpening 設定各量一次，找最佳平衡</li>
+<li><strong>常見偏差：</strong>拍攝角度不對 → edge slant angle 偏差；照明不均 → baseline error</li>
+</ol>
+
+<h3>④ 四平台終極對照</h3>
+<table>
+<tr><th>面向</th><th>RPi5</th><th>Orange Pi</th><th>Orin Nano</th><th>Thor</th><th>推薦</th></tr>
+<tr><td>銳利度控制</td><td>tuning file</td><td>有限</td><td>NV tools</td><td>Holoscan + AI</td><td>各有方式</td></tr>
+<tr><td>HDR 支援</td><td>有限 (staggered)</td><td>無</td><td>✓ 多 frame HDR</td><td>✓ AI HDR</td><td>Orin/Thor HDR 最佳</td></tr>
+<tr><td>調校工具</td><td>libcamera tunning tool</td><td>手動</td><td>NV camera tools</td><td>Holoscan dashboard</td><td>RPi5 開源最透明</td></tr>
+<tr><td>整體畫質天花板</td><td>中等</td><td>較低</td><td>高</td><td>最高</td><td>Thor 畫質最高</td></tr>
+</table>
+
+<h3>⑤ 完整 Bring-up 專案 Checklist</h3>
+<ul>
+<li>- [ ] 拍攝 ISO 12233 chart 並計算 baseline MTF</li>
+<li>- [ ] 調整 sharpening 並記錄 MTF 變化</li>
+<li>- [ ] 找到 denoise-sharpen 最佳平衡點</li>
+<li>- [ ] 測試不同光照條件下的清晰度</li>
+<li>- [ ] 測試 HDR 場景的動態範圍</li>
+<li>- [ ] 建立調校工作流 SOP（先 AE → AWB → LSC → NR → Sharpen）</li>
+<li>- [ ] 整理所有 tuning 參數到統一表格</li>
+<li>- [ ] 建立自動化 tuning script（如適用）</li>
+</ul>
+
   <div class="next-prev">
     <a href="unit-13.html"><div class="np-label">← 上一篇</div><div class="np-name">單元 13 · 雜訊與降噪</div></a>
     <a class="np-next" href="unit-15.html"><div class="np-label">下一篇 →</div><div class="np-name">單元 15 · 四平台影像調校功能比較</div></a>

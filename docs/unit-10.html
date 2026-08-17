@@ -239,6 +239,76 @@ EOF
     <li>- [ ] 已記錄各場景的 AE 收斂 log。</li>
   </ul>
 
+
+<hr>
+<h2>第 3 輪深度加深</h2>
+
+<h3>① Register 位元級完整工作流：OV5647 手動曝光設定與驗證</h3>
+<table>
+<tr><th>步驟</th><th>暫存器</th><th>值</th><th>位元級說明</th></tr>
+<tr><td>1. 解除 AE</td><td>0x3503</td><td>0x03</td><td>bit[0]=1(manual AEC), bit[1]=1(manual AGC)</td></tr>
+<tr><td>2. 設定曝光高位</td><td>0x3500</td><td>0x00</td><td>bit[3:0] = 曝光 bit[19:16]</td></tr>
+<tr><td>3. 設定曝光中位</td><td>0x3501</td><td>0x64</td><td>bit[7:0] = 曝光 bit[15:8]</td></tr>
+<tr><td>4. 設定曝光低位</td><td>0x3502</td><td>0x00</td><td>bit[7:4] = 4-bit 小數位</td></tr>
+<tr><td>5. 設定增益</td><td>0x350A</td><td>0x00</td><td>bit[1:0] = analog gain 高位</td></tr>
+<tr><td>6. 設定增益低位</td><td>0x350B</td><td>0x10</td><td>bit[7:0] = digital gain × 16 (0x10 = 1.0×)</td></tr>
+<tr><td>7. 驗證</td><td>read-back 0x3500-0x3503</td><td>—</td><td>確認回讀值 = 寫入值</td></tr>
+</table>
+<div class="callout"><strong>曝光計算公式：</strong>曝光時間(s) = (曝光行數 × 行時間) / 平台時脈。OV5647 在 24MHz MCLK 下，一行 ≈ 22.2μs。</div>
+
+<h3>② 多層疑難排解決策樹</h3>
+<p><strong>決策樹 A：AE 收斂過慢或震盪</strong></p>
+<pre>
+AE 異常
+├─ 檢查 A：AE target brightness 是否合理
+│  ├─ 太高(>200) → 曝光拉到最大仍不夠 → 降低 target
+│  └─ 太低(<50) → 曝光壓到最低仍太亮 → 提高 target
+├─ 檢查 B：AE convergance speed 設定
+│  ├─ 太快 → 震盪 → 降低 step size
+│  └─ 太慢 → 逐步增加 step size
+├─ 檢查 C：場景是否有大量高動態範圍
+│  ├─ 是 → AE 加權區域設定問題 → 調整 metering mode
+│  └─ 否 → 繼續
+└─ 檢查 D：50Hz/60Hz banding 是否造成行間差異
+   ├─ 是 → 曝光行數非整數倍 → 調整為 100/120 的整數倍
+   └─ 否 → AE 算法本身問題
+</pre>
+
+<h3>③ 量測驗證完整 SOP：AE 收斂時間量測</h3>
+<ol>
+<li><strong>方法：</strong>LED 切換光源亮度 + 影像亮度 log</li>
+<li><strong>步驟：</strong><br>
+  a. LED 亮度 Level 1 → 等 AE 收斂 → 記錄穩定 brightness<br>
+  b. 切換到 Level 2（突變）<br>
+  c. 每幀記錄 brightness，直到收斂（±5% 以内）</li>
+<li><strong>量測條件：</strong>3 個亮度等級（暗/中/亮），每次切換測 5 回</li>
+<li><strong>統計：</strong>平均收斂幀數、最差收斂幀數</li>
+<li><strong>判讀：</strong>收斂 &lt;30 幀 @30fps = &lt;1s 正常；&gt;60 幀 = 需優化 AE 參數</li>
+<li><strong>常見偏差：</strong>開場景 histogram 分佈極端 → AE target 誤判</li>
+</ol>
+
+<h3>④ 四平台終極對照</h3>
+<table>
+<tr><th>面向</th><th>RPi5</th><th>Orange Pi</th><th>Orin Nano</th><th>Thor</th><th>推薦</th></tr>
+<tr><td>AE 控制方式</td><td>libcamera 自動</td><td>V4L2 exposure control</td><td>Argus AE 算法</td><td>Holoscan + AI AE</td><td>各有特色</td></tr>
+<tr><td>曝光範圍</td><td>1-65535 行</td><td>依 sensor</td><td>更寬範圍</td><td>更寬範圍</td><td>Orin/Thor 範圍更寬</td></tr>
+<tr><td>收斂速度</td><td>可調（tuning）</td><td>固定</td><td>可調</td><td>AI 自適應</td><td>Thor 最快</td></tr>
+<tr><td>Metering 模式</td><td>全域/中心</td><td>全域</td><td>全域/中心/自訂</td><td>全域/中心/AI</td><td>Thor 最豐富</td></tr>
+<tr><td>手動/自動切換</td><td>✓ tuning 檔</td><td>V4L2 控制</td><td>Argus API</td><td>Holoscan API</td><td>RPi5 最直觀</td></tr>
+</table>
+
+<h3>⑤ 完整 Bring-up 專案 Checklist</h3>
+<ul>
+<li>- [ ] 確認 sensor 曝光暫存器可讀寫</li>
+<li>- [ ] 手動設定曝光並驗證影像亮度變化</li>
+<li>- [ ] 啟用 AE 並驗證自動收斂</li>
+<li>- [ ] 測試暗→亮→暗場景的 AE 收斂時間</li>
+<li>- [ ] 測試 50Hz/60Hz 下的 banding 行為</li>
+<li>- [ ] 調整 AE target brightness 並記錄效果</li>
+<li>- [ ] 測試 metering 模式切換</li>
+<li>- [ ] 記錄 AE 參數表存入 tuning 文件</li>
+</ul>
+
   <div class="next-prev">
     <a href="unit-09.html"><div class="np-label">← 上一篇</div><div class="np-name">單元 9 · 各平台 ISP 架構差異</div></a>
     <a class="np-next" href="unit-11.html"><div class="np-label">下一篇 →</div><div class="np-name">單元 11 · 白平衡與色彩（AWB / CCM）</div></a>

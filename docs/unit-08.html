@@ -255,6 +255,74 @@ report(sys.argv[1])</pre></div>
     <li>- [ ] 已完成一次 RAW 健康報告並存檔。</li>
   </ul>
 
+
+<hr>
+<h2>第 3 輪深度加深</h2>
+
+<h3>① Register 位元級完整工作流：OV5647 RAW 輸出格式設定</h3>
+<table>
+<tr><th>步驟</th><th>暫存器</th><th>值</th><th>位元級說明</th></tr>
+<tr><td>1. 設定格式</td><td>0x4300</td><td>0xF0</td><td>bit[7:4]=1111 → RAW Bayer, bit[3:0]=0000 → 10-bit</td></tr>
+<tr><td>2. 設定 Bayer 順序</td><td>0x4301</td><td>0x00</td><td>bit[1:0]=00 → GR/BG (RGGB), 01=BG/GR (BGGR)</td></tr>
+<tr><td>3. 設定輸出 byte packing</td><td>0x4302</td><td>0x00</td><td>bit[0]=0 → 10-bit packed (4 byte/4 pixel)</td></tr>
+<tr><td>4. 驗證</td><td>dump 0x4300-0x4302</td><td>—</td><td>確認值與設定一致</td></tr>
+</table>
+
+<h3>② 多層疑難排解決策樹</h3>
+<p><strong>決策樹 A：RAW 檔解碼後全黑或全白</strong></p>
+<pre>
+RAW 解碼異常
+├─ 檢查 A：Bayer 順序是否正確
+│  ├─ 不確定 → 依序嘗試 RGGB/BGGR/GRBG/GBRG，看哪個畫面正確
+│  └─ 正確 → 繼續
+├─ 檢查 B：位元深度是否匹配
+│  ├─ 10-bit 用 8-bit 解讀 → 發暗 → 確認 unpack 設定
+│  └─ 匹配 → 繼續
+├─ 檢查 C：stride / padding 是否正確
+│  ├─ stride 不對 → 行對齊錯誤 → 調整 bytes_per_line
+│  └─ 正確 → 繼續
+└─ 檢查 D：是否存在 data offset
+   ├─ 有 → RAW data 前有 metadata header → 跳過 header
+   └─ 無 → 格式設定問題
+</pre>
+
+<h3>③ 量測驗證完整 SOP：RAW 資料完整性驗證</h3>
+<ol>
+<li><strong>工具：</strong>rawpy, numpy, Python</li>
+<li><strong>步驟：</strong><br>
+  a. 擷取 RAW 檔（遮光，短曝光）<br>
+  b. <code>raw = rawpy.imread('test.raw')</code><br>
+  c. <code>print(raw.shape, raw.dtype, raw.min(), raw.max(), raw.mean())</code><br>
+  d. 確認 dtype=uint16 (10-bit packed in 16-bit), shape[2]=width</li>
+<li><strong>驗證清單：</strong><br>
+  a. 遮光 RAW：mean &lt; 50 (10-bit scale 0-1023) → 黑位 OK<br>
+  b. 白卡 RAW：mean &gt; 500 → 有光線到達 sensor<br>
+  c. 有 pattern 的測試圖：能辨識邊緣 → 解碼正確<br>
+  d. pixel 值 range：min ≥ 0, max ≤ 1023 (10-bit)</li>
+<li><strong>常見偏差：</strong>little-endian vs big-endian 位元反轉；packed vs unpacked 格式不符</li>
+</ol>
+
+<h3>④ 四平台終極對照</h3>
+<table>
+<tr><th>面向</th><th>RPi5</th><th>Orange Pi</th><th>Orin Nano</th><th>Thor</th><th>推薦</th></tr>
+<tr><td>RAW 格式</td><td>10-bit packed Bayer</td><td>8/10-bit Bayer</td><td>10/12-bit packed</td><td>12/14-bit packed</td><td>各有不同</td></tr>
+<tr><td>RAW 擷取工具</td><td>rpicam-apps --raw</td><td>v4l2-ctl --capture</td><td>NV nvraw tools</td><td>Holoscan pipeline</td><td>RPi5 最簡單</td></tr>
+<tr><td>RAW 格式解析</td><td>rawpy (Python)</td><td>rawpy / dcraw</td><td>NV tools</td><td>NV + Holoscan</td><td>rawpy 最通用</td></tr>
+<tr><td>Bayer 順序可調</td><td>Device tree</td><td>Device tree</td><td>NV tuning</td><td>Holoscan config</td><td>各有方式</td></tr>
+</table>
+
+<h3>⑤ 完整 Bring-up 專案 Checklist</h3>
+<ul>
+<li>- [ ] 確認感測器輸出的 Bayer 順序（RGGB/BGGR/GRBG/GBRG）</li>
+<li>- [ ] 確認位元深度（8/10/12-bit）</li>
+<li>- [ ] 擷取遮光 RAW 並驗證黑位</li>
+<li>- [ ] 擷取白卡 RAW 並驗證飽和點</li>
+<li>- [ ] 用 rawpy 正確解碼 RAW 並顯示</li>
+<li>- [ ] 驗證 BPP (bits per pixel) 與 stride</li>
+<li>- [ ] 測試不同解析度的 RAW 擷取</li>
+<li>- [ ] 整理 RAW 格式規格表存入專案文件</li>
+</ul>
+
   <div class="next-prev">
     <a href="unit-07.html"><div class="np-label">← 上一篇</div><div class="np-name">單元 7 · ISP 管線深入</div></a>
     <a class="np-next" href="unit-09.html"><div class="np-label">下一篇 →</div><div class="np-name">單元 9 · 各平台 ISP 架構差異</div></a>

@@ -227,6 +227,74 @@ EOF</pre></div>
     <li>- [ ] 已將兩份文件放入 repo 成為團隊資產。</li>
   </ul>
 
+
+<hr>
+<h2>第 3 輪深度加深</h2>
+
+<h3>① Register 位元級完整工作流：RPi5 雙攝影機 I2C 地址配置</h3>
+<table>
+<tr><th>步驟</th><th>操作</th><th>位元級說明</th></tr>
+<tr><td>1. 確認 sensor 0 I2C 地址</td><td><code>i2cdetect -y 1</code></td><td>0x3C (OV5647 default)</td></tr>
+<tr><td>2. 確認 sensor 1 I2C 地址</td><td><code>i2cdetect -y 0</code></td><td>0x3C on bus 0（不同 I2C bus）</td></tr>
+<tr><td>3. config.txt 設定</td><td>加入兩個 dtoverlay</td><td><code>dtoverlay=ov5647,cam0</code> + <code>dtoverlay=ov5647,cam1</code></td></tr>
+<tr><td>4. 驗證 media topology</td><td><code>media-ctl -d /dev/media0 -p</code></td><td>確認兩個 sensor 出現在 topology 中</td></tr>
+</table>
+
+<h3>② 多層疑難排解決策樹</h3>
+<p><strong>決策樹 A：多感測器只有一個能用</strong></p>
+<pre>
+只有一個能用
+├─ 檢查 A：兩個 sensor 是否在不同 I2C bus
+│  ├─ 同 bus 同地址 → 地址衝突 → 調整其中一個的地址（如有 OTP）<br>  └─ 不同 bus → 繼續
+├─ 檢查 B：config.txt overlay 是否正確指定 cam0/cam1
+│  ├─ 未指定 → 加 <code>,cam0</code> / <code>,cam1</code> 參數
+│  └─ 已指定 → 繼續
+├─ 檢查 C：CSI lane 分配是否正確
+│  ├─ cam0 佔用全部 lane → cam1 無 lane 可用 → 調整 lane 分配
+│  └─ 正確分配 → 繼續
+└─ 檢查 D：ISP 是否有足夠 bandwidth 處理雙路
+   ├─ 無 → 降低其中一路解析度
+   └─ 有 → 檢查驅動程式 multi-camera 支援
+</pre>
+
+<h3>③ 量測驗證完整 SOP：多感測器同步性量測</h3>
+<ol>
+<li><strong>方法：</strong>LED 閃爍 + 雙攝影機同時擷取 + frame timestamp 比對</li>
+<li><strong>步驟：</strong><br>
+  a. 設定 LED 以已知頻率（如 100Hz）閃爍<br>
+  b. 雙攝影機同步擷取 1000 幀<br>
+  c. 比對對應幀的 timestamp 差值</li>
+<li><strong>量測指標：</strong><br>
+  a. 平均時間差（offset）<br>
+  b. 時間差的標準差（jitter）<br>
+  c. 最大時間差</li>
+<li><strong>判讀：</strong>offset &lt;1ms, jitter &lt;0.5ms = 同步良好</li>
+<li><strong>常見偏差：</strong>I2C 時序差異 → 兩 sensor 啟動時間不同 → 首幀不同步</li>
+</ol>
+
+<h3>④ 四平台終極對照</h3>
+<table>
+<tr><th>面向</th><th>RPi5</th><th>Orange Pi</th><th>Orin Nano</th><th>Thor</th><th>推薦</th></tr>
+<tr><td>最大感測器數</td><td>2（官方）</td><td>1-2</td><td>4+ (GMSL)</td><td>多路（乙太網路）</td><td>Orin 規模最大</td></tr>
+<tr><td>多攝同步</td><td>有限（GPIO sync）</td><td>困難</td><td>硬體 sync 支援</td><td>網路時間協議</td><td>Orin/Thor 最佳</td></tr>
+<tr><td>帶寬</td><td>2×4-lane MIPI</td><td>2×2-lane</td><td>4× GMSL2</td><td>乙太網路無限</td><td>Thor 天生分散</td></tr>
+<tr><td>應用場景</td><td>立體視覺</td><td>前後鏡頭</td><td>多角度監控</td><td>大型部署</td><td>依需求選擇</td></tr>
+<tr><td>複雜度</td><td>中等</td><td>中等</td><td>高</td><td>很高</td><td>RPi5 適合入門</td></tr>
+</table>
+
+<h3>⑤ 完整 Bring-up 專案 Checklist</h3>
+<ul>
+<li>- [ ] 確認各 sensor 的 I2C 地址不衝突</li>
+<li>- [ ] config.txt 設定多個 dtoverlay</li>
+<li>- [ ] 驗證 media topology 包含所有 sensor</li>
+<li>- [ ] 逐一測試每個 sensor 獨立工作</li>
+<li>- [ ] 測試雙 sensor 同時擷取</li>
+<li>- [ ] 量測雙 sensor 同步性（offset + jitter）</li>
+<li>- [ ] 測試帶寬上限（最大解析度 × 最大幀率）</li>
+<li>- [ ] 整理多感測器配置文件供專案複用</li>
+<li>- [ ] 記錄各 sensor 組合的已知問題與 workaround</li>
+</ul>
+
   <div class="next-prev">
     <a href="unit-15.html"><div class="np-label">← 上一篇</div><div class="np-name">單元 15 · 四平台影像調校功能比較</div></a>
     <a class="np-next" href="index.html"><div class="np-label">課程完成 →</div><div class="np-name">回首頁 · 單元教學目錄</div></a>

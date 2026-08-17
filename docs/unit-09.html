@@ -194,6 +194,69 @@ EOF</pre></div>
     <li>- [ ] 已產出一份平台能力矩陣。</li>
   </ul>
 
+
+<hr>
+<h2>第 3 輪深度加深</h2>
+
+<h3>① Register 位元級完整工作流：RPi5 ISP 模組 ID 讀取</h3>
+<table>
+<tr><th>步驟</th><th>暫存器</th><th>操作</th><th>說明</th></tr>
+<tr><td>1. 讀取 ISP 硬體版本</td><td>0x7e802004</td><td><code>devmem2 0x7e802004 w</code></td><td>bit[31:16]=ISP version, bit[15:0]=revision</td></tr>
+<tr><td>2. 讀取可用模組 mask</td><td>0x7e802008</td><td><code>devmem2 0x7e802008 w</code></td><td>每個 bit 代表一個可用 ISP 模組（BLC/DM/LSC/CCM/...）</td></tr>
+<tr><td>3. 啟用特定模組</td><td>0x7e80200C</td><td>OR desired bits</td><td>例如 bit[3]=1 啟用 LSC, bit[5]=1 啟用 CCM</td></tr>
+<tr><td>4. 驗證</td><td>0x7e80200C</td><td>read-back</td><td>確認啟用的 bit 為 1</td></tr>
+</table>
+
+<h3>② 多層疑難排解決策樹</h3>
+<p><strong>決策樹 A：跨平台 ISP tuning 檔案不通用</strong></p>
+<pre>
+tuning 不通用
+├─ 檢查 A：tuning 檔案格式是否正確
+│  ├─ RPi5: .json (libcamera IPA)<br>  ├─ Orin: .xml (NV camera tools)<br>  ├─ Orange Pi: .cfg 或手動<br>  └─ Thor: .yaml (Holoscan) → 格式不共通是正常的
+├─ 檢查 B：ISP 模組能力差異
+│  ├─ RPi5 ISP 不支援某些模組 → 需軟體模擬
+│  └─ Orin/Thor 支援更完整 → 調校空間更大
+└─ 檢查 C：camera tuning 檔案路徑
+   ├─ RPi5: /etc/libcamera/ipa_rpi.yaml
+   ├─ Orin: /etc/nvarguscamerasrc/
+   └─ 路徑不同 ≠ 功能缺失
+</pre>
+
+<h3>③ 量測驗證完整 SOP：跨平台 ISP 輸出比對</h3>
+<ol>
+<li><strong>控制條件：</strong>相同感測器（如 OV5647）、相同光源（5000K）、相同曝光參數</li>
+<li><strong>量測項目：</strong><br>
+  a. 輸出影像 PSNR（相對 reference）<br>
+  b. 色彩偏差 ΔE*ab<br>
+  c. 銳利度（SFR / MTF10）<br>
+  d. 動態範圍（DR）</li>
+<li><strong>工具：</strong>rawpy + scikit-image + colour-science</li>
+<li><strong>判讀：</strong>PSNR &gt;30dB = 品質相近；ΔE*ab &lt;3 = 色彩差異可接受</li>
+<li><strong>常見偏差：</strong>不同 ISP pipeline 設定造成 baseline 差異 → 需獨立 tuning</li>
+</ol>
+
+<h3>④ 四平台終極對照</h3>
+<table>
+<tr><th>面向</th><th>RPi5</th><th>Orange Pi</th><th>Orin Nano</th><th>Thor</th><th>推薦</th></tr>
+<tr><td>ISP 硬體</td><td>VideoCore VI GPU</td><td>內建 ISP (SoC 而異)</td><td>專用 ISP 硬體</td><td>專用 ISP + DLA</td><td>Orin/Thor 效能最高</td></tr>
+<tr><td>ISP Pipeline 模組數</td><td>~8 個</td><td>~4-6 個</td><td>~15+ 個</td><td>~20+ 個</td><td>Thor 模組最豐富</td></tr>
+<tr><td>自動校正</td><td>libcamera 自動</td><td>手動為主</td><td>NV 自動 + 手動</td><td>NV 自動 + AI</td><td>Thor 最智慧</td></tr>
+<tr><td>低光性能</td><td>中等</td><td>較差</td><td>優</td><td>優異</td><td>Orin/Thor 低光最好</td></tr>
+<tr><td>開發成本</td><td>低</td><td>中</td><td>高</td><td>很高</td><td>RPi5 開發成本最低</td></tr>
+</table>
+
+<h3>⑤ 完整 Bring-up 專案 Checklist</h3>
+<ul>
+<li>- [ ] 確認各平台 ISP 硬體型號與能力</li>
+<li>- [ ] 建立各平台 tuning 檔案格式對照表</li>
+<li>- [ ] 在 RPi5 上完成 baseline tuning</li>
+<li>- [ ] 將 RPi5 tuning 等效移植到 Orin Nano</li>
+<li>- [ ] 量化比對兩平台輸出（PSNR/ΔE）</li>
+<li>- [ ] 記錄各平台 ISP 模組支援清單</li>
+<li>- [ ] 整理跨平台移植指南</li>
+<li>- [ ] 建立平台間差異的 FAQ 文件</li>
+</ul>
+
   <div class="next-prev">
     <a href="unit-08.html"><div class="np-label">← 上一篇</div><div class="np-name">單元 8 · RAW 擷取與資料格式</div></a>
     <a class="np-next" href="unit-10.html"><div class="np-label">下一篇 →</div><div class="np-name">單元 10 · 曝光與自動曝光（AE）</div></a>

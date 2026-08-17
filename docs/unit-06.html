@@ -261,6 +261,89 @@ echo "=== bring-up 全部通過 ==="</pre></div>
     <li>- [ ] 已保存一份完整 bring-up log。</li>
   </ul>
 
+
+<hr>
+<h2>第 3 輪深度加深</h2>
+
+<h3>① Register 位元級完整工作流：OV5647 診斷性暫存器 dump</h3>
+<table>
+<tr><th>暫存器範圍</th><th>用途</th><th>dump 指令範例</th></tr>
+<tr><td>0x3000-0x3005</td><td>感測器控制（stream on/off）</td><td><code>for i in $(seq 0x3000 0x3005); do printf "0x%04X: " $i; i2cget -y 1 0x3C $i w; done</code></td></tr>
+<tr><td>0x3500-0x3503</td><td>AEC 曝光設定</td><td>同上改範圍 0x3500-0x3503</td></tr>
+<tr><td>0x3034-0x3037</td><td>PLL 設定</td><td>同上改範圍 0x3034-0x3037</td></tr>
+<tr><td>0x3800-0x3821</td><td>整合窗口</td><td>同上改範圍</td></tr>
+<tr><td>0x5001-0x501F</td><td>ISP 控制</td><td>同上改範圍</td></tr>
+</table>
+<div class="callout"><strong>SOP：</strong>把 dump 結果寫入 CSV，與已知 good register map 比對，快速定位差異位元。</div>
+
+<h3>② 多層疑難排解決策樹</h3>
+<p><strong>決策樹 A：I2C scan 找不到感測器</strong></p>
+<pre>
+I2C 找不到
+├─ 檢查 A：GPIO 供電是否正常
+│  ├─ cam0_reg/cam1_reg = 0V → 電源 IC 異常 / overlay 未設定 power GPIO
+│  └─ 供電正常 → 繼續
+├─ 檢查 B：排線方向與位置
+│  ├─ 排線反插 → 重插正確方向
+│  └─ 正確 → 繼續
+├─ 檢查 C：I2C pull-up 是否存在
+│  ├─ 無 pull-up → SCL/SDA 處於 floating → 加 2.2kΩ pull-up to 3.3V
+│  └─ 有 pull-up → 繼續
+└─ 檢查 D：嘗試另一個 I2C bus（GPIO 0/1 vs GPIO 2/3）
+   ├─ 另一個 bus 有回應 → overlay 指定了錯誤的 I2C bus
+   └─ 都無回應 → 排線 / 感測器硬體問題
+</pre>
+
+<p><strong>決策樹 B：影像有嚴重 color cast</strong></p>
+<pre>
+Color cast
+├─ 檢查 A：AWB 是否啟用
+│  ├─ 未啟用 → tuning 檔案中 AWB 模組關閉
+│  └─ 已啟用 → 繼續
+├─ 檢查 B：CCM (Color Correction Matrix) 是否為 identity
+│  ├─ 是 → 需設定正確 CCM 係數
+│  └─ 否 → 繼續
+├─ 檢查 C：光源色溫是否在 AWB 覆蓋範圍
+│  ├─ 不在 → AWB 演算法收斂失敗 → 加入該色溫範圍
+│  └─ 在範圍內 → 繼續
+└─ 檢查 D：感測器 IR filter 是否正確
+   ├─ 無 IR filter → 近紅外光干擾 → 加 IR cut filter
+   └─ 有 IR filter → CCM 矩陣需針對實際光源校正
+</pre>
+
+<h3>③ 量測驗證完整 SOP：系統性 Register 掃描</h3>
+<ol>
+<li><strong>工具：</strong>RPi5 + i2c-tools + Python script</li>
+<li><strong>步驟：</strong><br>
+  a. dump 全部暫存器（0x0000-0x6xxx）存為 CSV<br>
+  b. 載入已知 good register map（CSV）<br>
+  c. diff 兩份 CSV，列出所有差異位元<br>
+  d. 對每個差異，標註暫存器功能（參考 datasheet）</li>
+<li><strong>判讀：</strong>0-5 個差異 = 正常（版本差異）；&gt;10 個差異 = 可能有初始化不完整</li>
+<li><strong>常見偏差：</strong>部分暫存器在不同 lighting mode 下值不同 → 非異常</li>
+</ol>
+
+<h3>④ 四平台終極對照</h3>
+<table>
+<tr><th>面向</th><th>RPi5</th><th>Orange Pi</th><th>Orin Nano</th><th>Thor</th><th>推薦</th></tr>
+<tr><td>除錯工具</td><td>i2c-tools + dmesg</td><td>i2c-tools + dmesg</td><td>NV debug tools</td><td>NV debug + Holoscan</td><td>RPi5 最直覺</td></tr>
+<tr><td>Register dump</td><td>i2cget 逐個讀</td><td>i2cget</td><td>NV 驅動內建</td><td>NV 驅動內建</td><td>RPi5 最透明</td></tr>
+<tr><td>常見坑</td><td>overlay 未生效</td><td>BSP 版本不匹配</td><td>NV closed source</td><td>文件不足</td><td>各平台有各自坑</td></tr>
+<tr><td>社群除錯</td><td>論壇活躍</td><td>較少</td><td>Jetson 專區</td><td>新、少</td><td>RPi5 + Jetson 社群最活躍</td></tr>
+</table>
+
+<h3>⑤ 完整 Bring-up 專案 Checklist</h3>
+<ul>
+<li>- [ ] 建立「已知 good register map」CSV 檔案</li>
+<li>- [ ] 撰寫自動化 register dump script</li>
+<li>- [ ] 完成首次全 register 掃描並比對</li>
+<li>- [ ] 逐一排查差異暫存器</li>
+<li>- [ ] 測試不同 power-on sequence 對 probe 的影響</li>
+<li>- [ ] 記錄所有 I2C 通信失敗案例與解法</li>
+<li>- [ ] 整理除錯 checklist 供團隊複用</li>
+<li>- [ ] 將完整 dump 歸入版本控制</li>
+</ul>
+
   <div class="next-prev">
     <a href="unit-05.html"><div class="np-label">← 上一篇</div><div class="np-name">單元 5 · 第一個鏡頭跑起來</div></a>
     <a class="np-next" href="unit-07.html"><div class="np-label">下一篇 →</div><div class="np-name">單元 7 · ISP 管線深入</div></a>

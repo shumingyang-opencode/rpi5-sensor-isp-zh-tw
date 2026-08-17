@@ -262,6 +262,93 @@ ls -la first.dng
     <li>- [ ] 已把生態驗證六步結果寫入 bring-up log。</li>
   </ul>
 
+
+<hr>
+<h2>第 3 輪深度加深</h2>
+
+<h3>① Register 位元級完整工作流：RPi5 CSI-2 通道啟用</h3>
+<table>
+<tr><th>步驟</th><th>操作</th><th>位元級細節</th></tr>
+<tr><td>1. 讀</td><td><code>sudo devmem2 0x7e801004 w</code></td><td>讀取 CSI2_NAND2 設定暫存器，確認 bit[0] PHY_EN 狀態</td></tr>
+<tr><td>2. 改</td><td>OR 0x00000007</td><td>bit[0]=1(PHY_EN) bit[1]=1(CSI_EN) bit[2]=1(IRQ_EN)</td></tr>
+<tr><td>3. 寫</td><td><code>sudo devmem2 0x7e801004 w 0x00000007</code></td><td>啟用 CSI-2 PHY + 控制器 + 中斷</td></tr>
+<tr><td>4. 驗證</td><td><code>sudo devmem2 0x7e801004 w</code></td><td>確認回讀值 bit[2:0] = 0b111</td></tr>
+</table>
+<div class="callout"><strong>Mask 說明：</strong>用 <code>0x00000007</code> mask 保留 bit[2:0]，其餘 bit 以 OR 方式合併，避免影響其他功能設定。</div>
+
+<h3>② 多層疑難排解決策樹</h3>
+<p><strong>決策樹 A：相機完全無畫面</strong></p>
+<pre>
+相機無畫面
+├─ 檢查 A：dmesg 有無 ov5647 probe 訊息
+│  ├─ 無 → overlay 未啟用 → /boot/firmware/config.txt 加 dtoverlay=ov5647
+│  └─ 有 → probe 成功，繼續
+├─ 檢查 B：i2cdetect 0x3C 是否有回應
+│  ├─ 無 → I2C 通道未開 / 排線問題 / 供電異常
+│  └─ 有 → I2C 正常，繼續
+├─ 檢查 C：rpicam-hello --list-cameras 是否出現 camera 0
+│  ├─ 無 → libcamera 管線未正確綁定 → 檢查 /etc/libcamera/ipa_rpi.yaml
+│  └─ 有 → 硬體層 OK，問題在應用層
+└─ 檢查 D：測試擷取 RAW 是否為全黑
+   ├─ 全黑 → sensor 曝光設定異常 / MIPI 訊號未到達 ISP
+   └─ 有資料 → 基本功能 OK
+</pre>
+
+<p><strong>決策樹 B：i2cdetect 有回應但畫面異常</strong></p>
+<pre>
+i2cdetect 有回應但畫面異常
+├─ 檢查 A：dmesg 有無 CSI error / frame sync error
+│  ├─ 有 → MIPI 時序問題 → 檢查 clock lane 頻率設定
+│  └─ 無 → 繼續
+├─ 檢查 B：曝光時間是否合理
+│  ├─ 0 或最大值 → AE 未收斂 → 檢查 tuning 檔案
+│  └─ 正常 → 繼續
+└─ 檢查 C：是否只在特定解析度下異常
+   ├─ 是 → 該解析度 lane 數/時序不匹配 → 調整 MIPI config
+   └─ 否 → 軟體管線問題
+</pre>
+
+<h3>③ 量測驗證完整 SOP：CSI-2 訊號完整性</h3>
+<ol>
+<li><strong>工具準備：</strong>示波器（≥200MHz）、SMA 探棒、15-pin 排線 breakout 板</li>
+<li><strong>接線：</strong>探棒接至 CSI connector 的 DATA0+ 與 GND</li>
+<li><strong>觸發設定：</strong>示波器觸發於 HS 模式進入（Voltage threshold ≈ 200mV）</li>
+<li><strong>量測項目：</strong><br>
+  a. HS 模式差動振幅：預期 100–300mV<br>
+  b. LP→HS 切換時間：預期 &lt;100ns<br>
+  c. Clock frequency：150MHz (2-lane) / 300MHz (4-lane)</li>
+<li><strong>重複量測：</strong>每條件量 10 次，計算平均值與 ±σ</li>
+<li><strong>判讀標準：</strong>振幅 &lt;80mV = 訊號衰減（排線品質差）；時序抖動 &gt;50ps = EMI 干擾</li>
+<li><strong>常見偏差：</strong>排線彎折半徑太小 → 阻抗不連續 → 振幅下降；接地不良 → 共模雜訊</li>
+</ol>
+
+<h3>④ 四平台終極對照</h3>
+<table>
+<tr><th>面向</th><th>RPi5</th><th>Orange Pi</th><th>Orin Nano</th><th>Thor</th><th>推薦</th></tr>
+<tr><td>CSI 介面</td><td>15-pin ×2, 4-lane</td><td>MIPI 排針, 2-lane</td><td>15/22-pin, GMSL 可選</td><td>HSB 乙太網路</td><td>RPi5 最易上手</td></tr>
+<tr><td>感測器驅動</td><td>mainline 內核</td><td>廠商 BSP</td><td>NVIDIA + 社群</td><td>NVIDIA + Holoscan</td><td>RPi5 mainline 最穩定</td></tr>
+<tr><td>Overlay 機制</td><td>config.txt dtoverlay</td><td>overlays + dtb</td><td>device tree + patch</td><td>DT + YAML</td><td>RPi5 最簡潔</td></tr>
+<tr><td>相機框架</td><td>libcamera 開源</td><td>V4L2 陽春</td><td>Argus 閉源</td><td>Argus / Holoscan</td><td>RPi5 生態最完整</td></tr>
+<tr><td>多感測器</td><td>2 port 官方支援</td><td>1-2 port</td><td>多 port + GMSL</td><td>乙太網路天生分散</td><td>Orin 規模最大</td></tr>
+<tr><td>上手難度</td><td>★★☆</td><td>★★★</td><td>★★★★</td><td>★★★★★</td><td>RPi5 入門首選</td></tr>
+</table>
+
+<h3>⑤ 完整 Bring-up 專案 Checklist</h3>
+<ul>
+<li>- [ ] 確認 RPi5 韌體版本（<code>vcgencmd version</code> ≥ 2024-01）</li>
+<li>- [ ] 安裝最新 Raspberry Pi OS（64-bit Bookworm）</li>
+<li>- [ ] <code>/boot/firmware/config.txt</code> 加入 <code>dtoverlay=ov5647</code>（或對應感測器）</li>
+<li>- [ ] 排線插入 CSI0 連接器，確認卡扣到位</li>
+<li>- [ ] 重啟後執行 <code>dmesg | grep ov5647</code> 確認 probe 成功</li>
+<li>- [ ] <code>i2cdetect -y 1</code> 確認 0x3C 出現</li>
+<li>- [ ] <code>rpicam-hello --list-cameras</code> 確認 camera 0 列出</li>
+<li>- [ ] 拍攝測試 RAW（<code>rpicam-hello -k --nopreview -t 5000 --raw</code>）</li>
+<li>- [ ] 用 rawpy / dcraw 驗證 RAW 尺寸與非全黑</li>
+<li>- [ ] 將所有步驟結果寫入 bring-up log，含時間戳</li>
+<li>- [ ] 如失敗，依決策樹 A/B 逐步排查</li>
+<li>- [ ] 記錄 MIPI lane 數、時鐘頻率、排線型號以備查</li>
+</ul>
+
   <div class="next-prev">
     <a href="index.html"><div class="np-label">← 上一層</div><div class="np-name">單元教學目錄</div></a>
     <a class="np-next" href="unit-02.html"><div class="np-label">下一篇 →</div><div class="np-name">單元 2 · 影像感測器基礎</div></a>

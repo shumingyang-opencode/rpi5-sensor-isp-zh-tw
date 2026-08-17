@@ -264,6 +264,74 @@ ls shots/</pre></div>
     <li>- [ ] 已存一份基準 RAW 與 metadata。</li>
   </ul>
 
+
+<hr>
+<h2>第 3 輪深度加深</h2>
+
+<h3>① Register 位元級完整工作流：OV5647 完整初始化序列（簡化版）</h3>
+<table>
+<tr><th>步驟</th><th>暫存器範圍</th><th>目的</th><th>關鍵 bit</th></tr>
+<tr><td>1. Reset</td><td>0x0103 = 0x01</td><td>軟體 reset</td><td>bit[0] = SW reset, 等 10ms</td></tr>
+<tr><td>2. Chip ID 驗證</td><td>0x300A = 0x56, 0x300B = 0x47</td><td>確認感測器回應</td><td>—</td></tr>
+<tr><td>3. PLL 設定</td><td>0x3034-0x3037</td><td>設定 pixel clock</td><td>0x3034 bit[7:6]=PLL mode, 0x3037 bit[4]=PLL root div</td></tr>
+<tr><td>4. 時序設定</td><td>0x3800-0x3821</td><td>H/V 整合開始/結束</td><td>bit[11:0] = pixel 起始/結束位置</td></tr>
+<tr><td>5. 輸出格式</td><td>0x4300 = 0xF0</td><td>RAW Bayer 10-bit</td><td>bit[7:4] = 資料格式</td></tr>
+<tr><td>6. ISP 控制</td><td>0x5001 = 0xFF</td><td>啟用 ISP 全部區塊</td><td>每個 bit 啟用一個 ISP 模組</td></tr>
+</table>
+
+<h3>② 多層疑難排解決策樹</h3>
+<p><strong>決策樹 A：rpicam-hello 出現 but 畫面全黑</strong></p>
+<pre>
+畫面全黑
+├─ 檢查 A：overlay 是否已更新（重啟後 dmesg 有無新 probe）
+│  ├─ 無 → <code>sudo raspi-config</code> 或手動改 config.txt 重啟
+│  └─ 有 → 繼續
+├─ 檢查 B：<code>rpicam-hello -k --nopreview -t 5000 --raw</code> 有無 RAW 檔
+│  ├─ 有 RAW 且非全黑 → preview 問題，非 sensor 問題
+│  └─ RAW 全黑 → sensor 無輸出
+├─ 檢查 C：手動設定曝光（排除 AE 問題）
+│  ├─ 手動曝光有畫面 → AE tuning 問題
+│  └─ 手動曝光仍全黑 → sensor 硬體問題
+└─ 檢查 D：檢查 GPIO 供電（A09 / cam1_reg / cam0_reg）
+   ├─ 無 2.8V / 1.8V → 電源模組異常
+   └─ 供電正常 → sensor 損壞
+</pre>
+
+<h3>③ 量測驗證完整 SOP：首次影像品質快速評估</h3>
+<ol>
+<li><strong>拍攝條件：</strong>5000K 光源箱、18% 灰卡、三腳架、手動曝光 10ms、ISO 100</li>
+<li><strong>量測項目：</strong><br>
+  a. 平均亮度（mean pixel value）：預期 80-120 (8-bit scale)<br>
+  b. 平均偏色（R-G, B-G）：各 &lt;10<br>
+  c. 暗角比（四角 mean / 中心 mean）：&gt;0.85 為合格<br>
+  d. 銳利度（水平邊緣 MTF10）：&gt;0.3 LP/pixel</li>
+<li><strong>工具：</strong>rawpy + numpy + scipy.ndimage</li>
+<li><strong>判讀：</strong>四項全通過 = 首次影像 OK；任一不通過 = 對應單元深入排查</li>
+<li><strong>常見偏差：</strong>色溫偏差 → AWB 未啟用；暗角嚴重 → 鏡頭未對準</li>
+</ol>
+
+<h3>④ 四平台終極對照</h3>
+<table>
+<tr><th>面向</th><th>RPi5</th><th>Orange Pi</th><th>Orin Nano</th><th>Thor</th><th>推薦</th></tr>
+<tr><td>首次啟動步驟</td><td>config.txt + dtoverlay</td><td>DTB 編譯 + overlay</td><td>NV flashing + DT</td><td>Holoscan YAML config</td><td>RPi5 最簡單</td></tr>
+<tr><td>首幀時間</td><td>~2s</td><td>~3s</td><td>~5s</td><td>~8s</td><td>RPi5 最快</td></tr>
+<tr><td>必要工具</td><td>rpicam-apps</td><td>gst + v4l2</td><td>Jetson 相關套件</td><td>Holoscan SDK</td><td>RPi5 依賴最少</td></tr>
+<tr><td>文件品質</td><td>★★★★★</td><td>★★</td><td>★★★★</td><td>★★</td><td>RPi5 文件最完整</td></tr>
+</table>
+
+<h3>⑤ 完整 Bring-up 專案 Checklist</h3>
+<ul>
+<li>- [ ] 確認 config.txt 已加入正確 dtoverlay</li>
+<li>- [ ] 重啟後 dmesg 確認 probe 成功</li>
+<li>- [ ] i2cdetect 確認 I2C 通訊正常</li>
+<li>- [ ] <code>rpicam-hello --list-cameras</code> 確認 camera 列出</li>
+<li>- [ ] 執行 <code>rpicam-hello -k --nopreview -t 5000</code> 確認有影像</li>
+<li>- [ ] 拍攝 RAW 檔並用 rawpy 驗證尺寸</li>
+<li>- [ ] 在灰卡條件下量測亮度/偏色/暗角</li>
+<li>- [ ] 調整曝光確認 sensor 對光線有反應</li>
+<li>- [ ] 整理 bring-up log 記錄每步結果</li>
+</ul>
+
   <div class="next-prev">
     <a href="unit-04.html"><div class="np-label">← 上一篇</div><div class="np-name">單元 4 · 相機框架與驅動</div></a>
     <a class="np-next" href="unit-06.html"><div class="np-label">下一篇 →</div><div class="np-name">單元 6 · Sensor Bring-up 與除錯</div></a>

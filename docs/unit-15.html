@@ -210,6 +210,75 @@ Thor        2.0      0.94    1.7     Holoscan新  低      是
     <li>- [ ] 已產出選型決策文件並記錄理由。</li>
   </ul>
 
+
+<hr>
+<h2>第 3 輪深度加深</h2>
+
+<h3>① Register 位元級完整工作流：RPi5 vs Orin tuning 對照</h3>
+<table>
+<tr><th>功能</th><th>RPi5 register</th><th>Orin equivalent</th><th>差異說明</th></tr>
+<tr><td>AE target</td><td>libcamera YAML: ae.target_brightness</td><td>3A XML: aeTargetBrightness</td><td>格式不同，RPi5 用 YAML，Orin 用 XML</td></tr>
+<tr><td>AWB mode</td><td>libcamera YAML: awb.mode</td><td>3A XML: awbMode</td><td>RPi5 選項較少</td></tr>
+<tr><td>LSC enable</td><td>ISP control bit[3]</td><td>NV ISP register</td><td>RPi5 直接操作硬體 register</td></tr>
+<tr><td>NR strength</td><td>ISP tuning register</td><td>NV 3A tuning XML</td><td>RPi5 需 devmem2，Orin 有 GUI 工具</td></tr>
+<tr><td>Sharpen</td><td>ISP tuning register</td><td>NV sharpen control</td><td>RPi5 可直接寫 register</td></tr>
+</table>
+
+<h3>② 多層疑難排解決策樹</h3>
+<p><strong>決策樹 A：跨平台調校結果不一致</strong></p>
+<pre>
+跨平台不一致
+├─ 檢查 A：tuning 檔案格式差異
+│  ├─ RPi5 YAML vs Orin XML → 手動翻譯等效參數
+│  └─ 格式相同 → 繼續
+├─ 檢查 B：ISP pipeline 模組差異
+│  ├─ RPi5 缺少某些模組 → 功能不完全等效
+│  └─ 模組相同 → 繼續
+├─ 檢查 C：sensor 輸出格式差異
+│  ├─ 位元深度/Bayer 順序不同 → 調整 raw processing
+│  └─ 相同 → 繼續
+└─ 檢查 D：量化指標是否在容差內
+   ├─ PSNR &gt;30dB, ΔE &lt;5 → 差異可接受
+   └─ 超出容差 → 需要針對該平台獨立 tuning
+</pre>
+
+<h3>③ 量測驗證完整 SOP：跨平台調校品質比對</h3>
+<ol>
+<li><strong>控制條件：</strong>相同感測器 + 相同光源 + 相同曝光 + 相同場景</li>
+<li><strong>量化指標：</strong><br>
+  a. PSNR (dB)：畫質保真度<br>
+  b. ΔE*ab：色彩一致性<br>
+  c. MTF10：銳利度一致性<br>
+  d. SNR (dB)：雜訊一致性<br>
+  e. DR (dB)：動態範圍一致性</li>
+<li><strong>工具：</strong>rawpy + scikit-image + colour-science + numpy</li>
+<li><strong>判讀：</strong>五項指標全在容差內 = 調校一致；任一超出 = 該平台需獨立調校</li>
+<li><strong>常見偏差：</strong>不同 ISP 設計 → 無法完全一致 → 取「可接受差異」</li>
+</ol>
+
+<h3>④ 四平台終極對照</h3>
+<table>
+<tr><th>面向</th><th>RPi5</th><th>Orange Pi</th><th>Orin Nano</th><th>Thor</th><th>推薦</th></tr>
+<tr><td>調校工具成熟度</td><td>★★★★</td><td>★★</td><td>★★★★★</td><td>★★★★</td><td>Orin 工具最成熟</td></tr>
+<tr><td>調校自由度</td><td>★★★★</td><td>★★</td><td>★★★★★</td><td>★★★★★</td><td>Orin/Thor 最自由</td></tr>
+<tr><td>學習曲線</td><td>中等</td><td>低</td><td>高</td><td>很高</td><td>RPi5 最適合學習</td></tr>
+<tr><td>調校文件</td><td>★★★★★</td><td>★★</td><td>★★★★</td><td>★★</td><td>RPi5 文件最好</td></tr>
+<tr><td>社群支援</td><td>★★★★★</td><td>★★</td><td>★★★★</td><td>★★</td><td>RPi5 社群最活躍</td></tr>
+<tr><td>調校一致性</td><td>baseline</td><td>偏差較大</td><td>±可接受</td><td>±可接受</td><td>以 RPi5 為 baseline</td></tr>
+</table>
+
+<h3>⑤ 完整 Bring-up 專案 Checklist</h3>
+<ul>
+<li>- [ ] 在 RPi5 上完成 baseline tuning（全部模組）</li>
+<li>- [ ] 將 tuning 參數轉換為 Orin 等效格式</li>
+<li>- [ ] 在 Orin Nano 上套用等效 tuning</li>
+<li>- [ ] 量化比對五項指標（PSNR/ΔE/MTF/SNR/DR）</li>
+<li>- [ ] 針對超標指標獨立調整 Orin tuning</li>
+<li>- [ ] 整理跨平台調校對照表</li>
+<li>- [ ] 建立調校移植 SOP</li>
+<li>- [ ] 建立跨平台調校 FAQ</li>
+</ul>
+
   <div class="next-prev">
     <a href="unit-14.html"><div class="np-label">← 上一篇</div><div class="np-name">單元 14 · 清晰度、動態範圍與調校工作流</div></a>
     <a class="np-next" href="unit-16.html"><div class="np-label">下一篇 →</div><div class="np-name">單元 16 · 多感測器與實作案例</div></a>

@@ -261,6 +261,74 @@ EOF</pre></div>
     <li>- [ ] 已完成一份雜訊特性資料庫並存檔。</li>
   </ul>
 
+
+<hr>
+<h2>第 3 輪深度加深</h2>
+
+<h3>① Register 位元級完整工作流：OV5647 DPC + NR 控制</h3>
+<table>
+<tr><th>步驟</th><th>暫存器</th><th>值</th><th>位元級說明</th></tr>
+<tr><td>1. 啟用 DPC</td><td>0x5080</td><td>0x01</td><td>bit[0]=1 DPC on</td></tr>
+<tr><td>2. 設定 DPC threshold</td><td>0x5081</td><td>0x0A</td><td>bit[7:0] = 雜訊閾值（越大越保守）</td></tr>
+<tr><td>3. 啟用 NR (luma)</td><td>0x5290</td><td>0x04</td><td>bit[3:2]=01 Luma NR strength medium</td></tr>
+<tr><td>4. 啟用 NR (chroma)</td><td>0x5291</td><td>0x08</td><td>bit[3:2]=10 Chroma NR strength high</td></tr>
+<tr><td>5. 驗證</td><td>read-back</td><td>—</td><td>確認所有值正確</td></tr>
+</table>
+
+<h3>② 多層疑難排解決策樹</h3>
+<p><strong>決策樹 A：NR 過強導致細節模糊</strong></p>
+<pre>
+NR 過強
+├─ 檢查 A：NR strength 設定值
+│  ├─ 過高 → 降低 strength level
+│  └─ 適中 → 繼續
+├─ 檢查 B：NR threshold 是否針對當前 gain
+│  ├─ 不是 → 不同 gain 需要不同 threshold
+│  └─ 是 → 繼續
+├─ 檢查 C：是否同時有 spatial + temporal NR
+│  ├─ 是 → 可能疊加過強 → 分別調整
+│  └─ 否 → 繼續
+└─ 檢查 D：後處理 pipeline 是否有額外 NR
+   ├─ 有 → 去除多餘 NR 階段
+   └─ 無 → 調整 NR 演算法參數
+</pre>
+
+<h3>③ 量測驗證完整 SOP：SNR 量測（ISO Sweep）</h3>
+<ol>
+<li><strong>工具：</strong>灰卡 + 標準光源 + rawpy + numpy</li>
+<li><strong>步驟：</strong><br>
+  a. 固定曝光，改變 ISO（100/200/400/800/1600）<br>
+  b. 每個 ISO 拍 10 幀<br>
+  c. 計算每幀灰卡 ROI 的 mean 和 std<br>
+  d. SNR = 20 × log₁₀(mean / std)</li>
+<li><strong>畫圖：</strong>SNR vs ISO 曲線</li>
+<li><strong>判讀：</strong>ISO 100 SNR &gt;40dB = 優良；ISO 800 SNR &gt;25dB = 可接受</li>
+<li><strong>啟用 NR 後重測：</strong>比較 NR on/off 的 SNR 差異</li>
+<li><strong>常見偏差：</strong>灰卡不平 → mean 偏差；環境光洩入 → 黑位偏高</li>
+</ol>
+
+<h3>④ 四平台終極對照</h3>
+<table>
+<tr><th>面向</th><th>RPi5</th><th>Orange Pi</th><th>Orin Nano</th><th>Thor</th><th>推薦</th></tr>
+<tr><td>NR 類型</td><td>Spatial NR</td><td>基本 NR</td><td>Spatial + Temporal</td><td>Spatial + Temporal + AI</td><td>Thor 最先進</td></tr>
+<tr><td>DPC</td><td>感測器端</td><td>感測器端</td><td>ISP 端</td><td>ISP + AI</td><td>Thor 最強</td></tr>
+<tr><td>NR 強度可調</td><td>✓ tuning</td><td>有限</td><td>✓ 完整</td><td>✓ AI 自適應</td><td>Orin/Thor 最靈活</td></tr>
+<tr><td>低光 SNR</td><td>中等</td><td>較差</td><td>優</td><td>優異</td><td>Orin/Thor 最佳</td></tr>
+<tr><td>功耗</td><td>低</td><td>低</td><td>中</td><td>高</td><td>RPi5 功耗最低</td></tr>
+</table>
+
+<h3>⑤ 完整 Bring-up 專案 Checklist</h3>
+<ul>
+<li>- [ ] 遮光量測 read noise（各 ISO）</li>
+<li>- [ ] 量測 dark current vs 溫度</li>
+<li>- [ ] 建立 hot pixel 地圖</li>
+<li>- [ ] 啟用 DPC 並驗證效果</li>
+<li>- [ ] 畫出 SNR vs ISO 曲線</li>
+<li>- [ ] 分別調整 spatial/temporal NR 強度</li>
+<li>- [ ] 比較 NR on/off 的 SNR 改善</li>
+<li>- [ ] 建立雜訊特性資料庫存入版本控制</li>
+</ul>
+
   <div class="next-prev">
     <a href="unit-12.html"><div class="np-label">← 上一篇</div><div class="np-name">單元 12 · 鏡頭陰影校正（LSC）</div></a>
     <a class="np-next" href="unit-14.html"><div class="np-label">下一篇 →</div><div class="np-name">單元 14 · 清晰度、動態範圍與調校工作流</div></a>

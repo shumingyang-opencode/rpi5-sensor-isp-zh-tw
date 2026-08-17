@@ -222,6 +222,72 @@ EOF</pre></div>
     <li>- [ ] 已記錄黑位-增益曲線。</li>
   </ul>
 
+
+<hr>
+<h2>第 3 輪深度加深</h2>
+
+<h3>① Register 位元級完整工作流：RPi5 ISP 模組啟用控制</h3>
+<table>
+<tr><th>步驟</th><th>暫存器</th><th>操作</th><th>位元級說明</th></tr>
+<tr><td>1. 讀取 ISP 設定</td><td>0x7e802000 (ISP control)</td><td><code>devmem2 0x7e802000 w</code></td><td>bit[0]=ISP_EN, bit[1]=BAYER_EN, bit[2]=JPEG_EN</td></tr>
+<tr><td>2. 啟用 ISP</td><td>同上</td><td><code>devmem2 0x7e802000 w 0x00000003</code></td><td>bit[0]=1(ISP_ON) + bit[1]=1(BAYER_ON)</td></tr>
+<tr><td>3. 設定輸出格式</td><td>0x7e802008</td><td>寫入格式控制</td><td>bit[3:0]=0b0010 (RGB888), 0b0100 (YUV420)</td></tr>
+<tr><td>4. 驗證</td><td>0x7e802000</td><td>read-back</td><td>確認 bit[1:0] = 0b11</td></tr>
+</table>
+
+<h3>② 多層疑難排解決策樹</h3>
+<p><strong>決策樹 A：ISP 模組初始化失敗</strong></p>
+<pre>
+ISP 初始化失敗
+├─ 檢查 A：RPi5 GPU firmware 版本
+│  ├─ 過舊 → <code>sudo rpi-update</code> 或重裝韌體
+│  └─ 最新 → 繼續
+├─ 檢查 B：ISP clock 是否啟用
+│  ├─ 未啟用 → 設定 clock divider register
+│  └─ 已啟用 → 繼續
+├─ 檢查 C：ISP 記憶體分配是否成功
+│  ├─ 失敗 → CMA pool 不足 → config.txt 設定 <code>dtoverlay=cma,cma=256M</code>
+│  └─ 成功 → 繼續
+└─ 檢查 D：ISP pipeline 設定是否有 timing violation
+   ├─ 有 → 調整 ISP clock 或 frame size
+   └─ 無 → ISP 硬體問題
+</pre>
+
+<h3>③ 量測驗證完整 SOP：ISP Pipeline 延遲量測</h3>
+<ol>
+<li><strong>方法：</strong>比較 RAW frame 與 ISP 輸出 frame 的 metadata timestamp</li>
+<li><strong>步驟：</strong><br>
+  a. <code>rpicam-hello -k --nopreview -t 10000 --raw --info-text</code><br>
+  b. 同時擷取 RAW + ISP output frames<br>
+  c. 比對對應幀的 timestamp 差值</li>
+<li><strong>量測條件：</strong>三種解析度（640×480 / 1280×720 / 1920×1080）</li>
+<li><strong>統計：</strong>每條件 100 幀，計算 mean / std / p99</li>
+<li><strong>判讀：</strong>mean &lt; 15ms = 正常；std &gt; 3ms = pipeline 有 jitter</li>
+<li><strong>常見偏差：</strong>GPU 負載高時延遲增加；CMA 分配延遲造成首幀 spike</li>
+</ol>
+
+<h3>④ 四平台終極對照</h3>
+<table>
+<tr><th>面向</th><th>RPi5</th><th>Orange Pi</th><th>Orin Nano</th><th>Thor</th><th>推薦</th></tr>
+<tr><td>ISP 類型</td><td>GPU-based ISP</td><td>硬體 ISP (部分 SoC)</td><td>專用 ISP 硬體</td><td>專用 ISP + DLA</td><td>Orin/Thor 效能最佳</td></tr>
+<tr><td>處理能力</td><td>~4K@30</td><td>~1080p@30</td><td>~4K@60</td><td>~8K@30</td><td>Thor 規格最高</td></tr>
+<tr><td>Latency</td><td>10-20ms</td><td>15-30ms</td><td>5-10ms</td><td>3-8ms</td><td>Thor 最低</td></tr>
+<tr><td>功耗</td><td>~5W total</td><td>~4W total</td><td>~10W</td><td>~15W</td><td>RPi5 功耗最低</td></tr>
+<tr><td>可調性</td><td>中等（tuning tool）</td><td>低</td><td>高（NV tuning）</td><td>高（Holoscan）</td><td>Orin/Thor 可調性最高</td></tr>
+</table>
+
+<h3>⑤ 完整 Bring-up 專案 Checklist</h3>
+<ul>
+<li>- [ ] 確認 ISP firmware 版本（<code>vcgencmd get_throttled</code>）</li>
+<li>- [ ] 確認 CMA 記憶體分配充足（≥128M）</li>
+<li>- [ ] 驗證 ISP pipeline clock 設定正確</li>
+<li>- [ ] 用 media-ctl 確認 ISP 模組在 topology 中</li>
+<li>- [ ] 量測 ISP 延遲（三種解析度）</li>
+<li>- [ ] 驗證 ISP 輸出格式（RGB / YUV / JPEG）</li>
+<li>- [ ] 確認 ISP 處理無 frame drop（1000 幀測試）</li>
+<li>- [ ] 記錄 ISP 功耗（<code>vcgencmd measure_clock arm</code>）</li>
+</ul>
+
   <div class="next-prev">
     <a href="unit-06.html"><div class="np-label">← 上一篇</div><div class="np-name">單元 6 · Sensor Bring-up 與除錯</div></a>
     <a class="np-next" href="unit-08.html"><div class="np-label">下一篇 →</div><div class="np-name">單元 8 · RAW 擷取與資料格式</div></a>

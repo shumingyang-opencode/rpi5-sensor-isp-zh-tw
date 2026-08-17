@@ -222,6 +222,69 @@ media-ctl -p -d /dev/media0 | grep -E "entity|ov5647|unicam"</pre></div>
     <li>- [ ] 已記錄兩顆相機的 media graph 快照。</li>
   </ul>
 
+
+<hr>
+<h2>第 3 輪深度加深</h2>
+
+<h3>① Register 位元級完整工作流：V4L2 subdev 設定曝光</h3>
+<table>
+<tr><th>步驟</th><th>操作</th><th>位元級說明</th></tr>
+<tr><td>1. 列舉 subdev</td><td><code>v4l2-ctl -d /dev/v4l-subdev0 --list-subdevs</code></td><td>確認 sensor subdev 存在</td></tr>
+<tr><td>2. 讀取曝光控制</td><td><code>v4l2-ctl -d /dev/v4l-subdev0 -C exposure</code></td><td>返回當前曝光值（行數）</td></tr>
+<tr><td>3. 設定手動曝光</td><td><code>v4l2-ctl -d /dev/v4l-subdev0 -c exposure=100,exposure_auto=0</code></td><td>exposure_auto=0 解除 AE，exposure=100 行</td></tr>
+<tr><td>4. 驗證</td><td><code>v4l2-ctl -d /dev/v4l-subdev0 -C exposure</code></td><td>回讀確認值 = 100</td></tr>
+</table>
+
+<h3>② 多層疑難排解決策樹</h3>
+<p><strong>決策樹 A：libcamera 與 V4L2 工具衝突</strong></p>
+<pre>
+工具衝突
+├─ 檢查 A：cam -d /dev/media0 是否佔用 pipeline
+│  ├─ 是 → 關閉 cam 後再用 v4l2-ctl
+│  └─ 否 → 繼續
+├─ 檢查 B：rpicam-hello 是否在背景執行
+│  ├─ 是 → kill 後重試
+│  └─ 否 → 繼續
+└─ 檢查 C：是否有其他 process 打開 /dev/video*
+   ├─ 是 → <code>lsof /dev/video*</code> 找出並終止
+   └─ 否 → driver 問題，檢查 media topology
+</pre>
+
+<h3>③ 量測驗證完整 SOP：Pipeline 延遲量測</h3>
+<ol>
+<li><strong>方法：</strong>GPIO 觸發 + 影像時間戳比對</li>
+<li><strong>硬體：</strong>RPi5 GPIO 17 接 LED + 示波器</li>
+<li><strong>軟體：</strong>在影像 callback 中拉 GPIO High，從 raw frame header 讀取 timestamp</li>
+<li><strong>量測：</strong><br>
+  a. GPIO rising → frame timestamp = sensor → ISP 延遲<br>
+  b. frame timestamp → callback timestamp = ISP → 應用延遲<br>
+  c. 總延遲 = a + b</li>
+<li><strong>重複：</strong>100 幀取 p50 / p99 / p99.9 latency</li>
+<li><strong>判讀：</strong>p50 &lt;33ms (30fps), p99 &lt;50ms = 正常；jitter &gt;10ms = pipeline 有 blocking</li>
+</ol>
+
+<h3>④ 四平台終極對照</h3>
+<table>
+<tr><th>面向</th><th>RPi5</th><th>Orange Pi</th><th>Orin Nano</th><th>Thor</th><th>推薦</th></tr>
+<tr><td>主要框架</td><td>libcamera + V4L2</td><td>V4L2 直接</td><td>Argus + V4L2</td><td>Argus + Holoscan</td><td>各有生態</td></tr>
+<tr><td>開源程度</td><td>★★★★★</td><td>★★★</td><td>★★★</td><td>★★</td><td>RPi5 最開源</td></tr>
+<tr><td>驅動品質</td><td>mainline clean</td><td>BSP 補丁多</td><td>NVIDIA maintained</td><td>NVIDIA maintained</td><td>RPi5 最乾淨</td></tr>
+<tr><td>API 學習曲線</td><td>中等</td><td>低</td><td>高</td><td>很高</td><td>Orange Pi 最低</td></tr>
+<tr><td>社群資源</td><td>★★★★★</td><td>★★</td><td>★★★★</td><td>★★</td><td>RPi5 社群最豐富</td></tr>
+</table>
+
+<h3>⑤ 完整 Bring-up 專案 Checklist</h3>
+<ul>
+<li>- [ ] 確認 kernel 版本與 media controller driver 版本</li>
+<li>- [ ] <code>media-ctl -d /dev/media0 -p</code> 查看 pipeline topology</li>
+<li>- [ ] 確認 sensor → CSI → ISP → video device 串接正確</li>
+<li>- [ ] 用 v4l2-ctl 逐一設定並驗證各控制項目</li>
+<li>- [ ] 測試 libcamera 與 V4L2 工具切換無衝突</li>
+<li>- [ ] 量測 pipeline 延遲（p50/p99）</li>
+<li>- [ ] 確認 DMA buffer 分配正確（ion/dma-buf）</li>
+<li>- [ ] 整理框架對照表存入專案文件</li>
+</ul>
+
   <div class="next-prev">
     <a href="unit-03.html"><div class="np-label">← 上一篇</div><div class="np-name">單元 3 · 感測器通訊介面</div></a>
     <a class="np-next" href="unit-05.html"><div class="np-label">下一篇 →</div><div class="np-name">單元 5 · 第一個鏡頭跑起來</div></a>
