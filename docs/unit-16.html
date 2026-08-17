@@ -92,6 +92,73 @@
     <ul><li>RPi5 多相機操作。</li><li>客製 OV 接入四步。</li><li>完整調校案例七步。</li><li>調校最佳實踐。</li></ul>
   </div>
 
+  <h2>進階真實情境 Worked Example：從零建立 OV5647 的完整 tuning 檔</h2>
+  <p>場景：你拿到一顆全新的 OV5647，RPi5 的預設 tuning 不理想（偏暗、偏黃）。需要從零開始，按正確順序建立一份完整的 tuning JSON。</p>
+  <div class="demo-block"><div class="demo-label">完整 tuning 建立流程</div><pre>#!/bin/bash
+# === 階段 1：備份預設 tuning ===
+cp /usr/share/libcamera/ipa/rpi/pisp/ov5647.json ./tuning_v0.json
+
+# === 階段 2：黑位校正（遮光拍攝）===
+rpicam-still --raw --shutter 33000 --gain 1 \
+  --awb off --awbgains 1,1 -o black.dng
+python3 - <<'EOF'
+import rawpy, numpy as np
+raw = rawpy.imread('black.dng').raw_image[500:1500,500:1500]
+print(f"BlackLevel: R={raw[0::2,0::2].mean():.0f} "
+      f"Gr={raw[0::2,1::2].mean():.0f} "
+      f"Gb={raw[1::2,0::2].mean():.0f} "
+      f"B={raw[1::2,1::2].mean():.0f}")
+EOF
+# → 將量測值填入 tuning JSON 的 BlackLevel 區塊
+# → 另存為 tuning_v1_black.json
+
+# === 階段 3：LSC 校正（均勻灰拍攝）===
+rpicam-still --raw --shutter 20000 --gain 1 \
+  --awb off --awbgains 1,1 -o lsc_gray.dng
+# → 用白牆/灰卡推算 LSC 網格 → tuning_v2_lsc.json
+
+# === 階段 4：AWB/CCM 校正（色卡拍攝）===
+rpicam-still --raw --shutter 20000 --gain 1 \
+  --awb off --awbgains 1,1 -o colorchart.dng
+# → 用色卡各色塊計算 CCM → tuning_v3_ccm.json
+
+# === 階段 5：NR/Sharpen 微調（實景）===
+rpicam-still --tuning-file tuning_v3_ccm.json \
+  --shutter 20000 --gain 4 -o real_scene.jpg
+# → 調整 Denoise strength + Sharpen → tuning_v4_final.json
+
+# === 驗證 ===
+rpicam-still --tuning-file tuning_v4_final.json \
+  --shutter 20000 --gain 1 --raw -o verify.dng</pre></div>
+<div class="callout"><strong>為什麼選這條路徑：</strong>五階段的順序嚴格遵循 ISP 管線的校正依賴：黑位是地基（影響所有統計）→ LSC 是亮度（影響色彩量測）→ AWB/CCM 是色彩（依賴正確的亮度基準）→ NR/Sharpen 是美化（最後處理）。跳步驟（如先調 NR 再校黑位）會導致前面的校正被後面的改動覆蓋——這是新手最常犯的錯誤。</div>
+
+  <h2>深入原理擴充：OV5647 的 ISP 處理鏈與 BCM2712 PiSP 的硬體管線</h2>
+  <p>RPi5 的 BCM2712 內建 PiSP（Programmable ISP），其硬體管線有以下特點：</p>
+  <ul>
+    <li><strong>管線順序固定</strong>：Black Level → LSC → Demosaic → NR → CCM → Gamma → Output。每個區塊的參數可調，但<strong>順序不可更改</strong>——這就是為什麼校正必須按順序進行。</li>
+    <li><strong>PiSP 的 Demosaic</strong>：使用方向性插值 + 假色抑制，比基礎雙線性插值品質高。但「假色抑制強度」只有一個旋鈕（strength），無法像專業 ISP 那樣分區域調整。</li>
+    <li><strong>HDR 合成</strong>：PiSP 支援 2-3 幀合成，但合成邏輯在硬體中（不可調）。用戶只能控制「是否啟用 HDR」和「曝光比」，無法自訂合成演算法。</li>
+    <li><strong>統計回饋</strong>：PiSP 每幀產生亮度直方圖、色彩平均值等統計，供 libcamera 的 IPA（Image Processing Algorithm）模組使用。IPA 模組是<strong>software 實作</strong>的——可以替換或修改。</li>
+  </ul>
+  <div class="callout warn"><strong>大家以為沒问题但其實是陷阱：</strong>很多人以為「tuning JSON 可以控制 ISP 的每個細節」，但 PiSP 的硬體管線有一些<strong>不可調的內部參數</strong>（如 demosaic 的 kernel 大小、NR 的空間 kernel 形狀）。這些參數在硬體中固化，tuning JSON 只能調整「強度」旋鈕。若你需要完全控制管線的每個細節，RPi5 不是正確的平台——這時需要 Orin Nano 或客製 SoC。</div>
+
+  <h2>診斷式疑難排解表</h2>
+  <table>
+    <tr><th>症狀</th><th>可能原因</th><th>解決方案</th></tr>
+    <tr><td>從零建立的 tuning 效果比預設更差</td><td>跳過了校正順序（如先調 CCM 再校黑位）</td><td>嚴格按黑位→LSC→AWB/CCM→NR 順序重做</td></tr>
+    <tr><td>色卡校正後室內場景色彩正確但日光場景偏暖</td><td>CCM 只在一個色溫下校正，未涵蓋其他光源</td><td>在至少 2-3 個色溫下分別校正 CCM，建立分段表</td></tr>
+    <tr><td>LSC 校正用白牆但效果不如積分球</td><td>白牆的均勻度不夠（有陰影、反射、污漬）</td><td>用更均勻的光源；或增加曝光範圍取平均</td></tr>
+    <tr><td>NR 開到最強仍無法消除低光雜訊</td><td>增益太高（雜訊源頭過強）</td><td>回到源頭：降增益、加曝光、補光</td></tr>
+    <tr><td>tuning JSON 修改後 libcamera 報錯</td><td>JSON 語法錯誤或缺少必要欄位</td><td>用 python3 -m json.tool 驗證；對照預設 JSON 的結構</td></tr>
+  </table>
+
+  <h2>進階挑戰題</h2>
+  <ol>
+    <li>設計一個「tuning 質量自動評分器」：輸入一張色卡 RAW，自動計算平均 ΔE、暗角比、NR σ，輸出綜合評分。用這個評分器量化比較「預設 tuning」vs「你的手動 tuning」。</li>
+    <li>若要將 OV5647 的 tuning 參數移植到 OV5640（不同的感測器），需要修改哪些區塊？哪些區塊可以直接複製？</li>
+    <li>研究 libcamera 的 IPA 模組原始碼（src/ipa/rpi/pisp/），分析 AE/AWB 演算法的核心邏輯。若要自訂 AE 演算法，需要修改哪些檔案？</li>
+  </ol>
+
   <h2>延伸閱讀</h2>
   <ul>
     <li>回顧全站：<a href="index.html">單元教學目錄</a>。</li>

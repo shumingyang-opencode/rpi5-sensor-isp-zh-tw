@@ -115,6 +115,65 @@ EOF</pre></div>
     <ul><li>AWB 原理與 gains 角色。</li><li>灰卡校正標準程序。</li><li>CCM 與分色溫。</li><li>色卡量化算 CCM（ΔE）。</li><li>色彩調校紀律。</li></ul>
   </div>
 
+  <h2>進階真實情境 Worked Example：在混合光源下校正 AWB 與 CCM</h2>
+  <p>場景：你的場景同時有窗外日光（6500K）和室內白熾燈（2700K），AWB 演算法在兩者之間來回跳動。需要找到一個穩定的 gains 組合。</p>
+  <div class="demo-block"><div class="demo-label">混合光源 AWB 穩定化</div><pre># 1. 分別量測兩個區域的色溫
+# 窗邊區域（日光）：
+rpicam-still --raw --shutter 10000 --gain 1 -o mix_window.dng
+# 室內區域（白熾）：
+rpicam-still --raw --shutter 30000 --gain 1 -o mix_indoor.dng
+
+# 2. 用灰卡量測各光源的 gains
+# 日光區（色溫約 6500K）：
+#   RedGain=1.1  BlueGain=1.6
+# 白熾區（色溫約 2700K）：
+#   RedGain=1.8  BlueGain=1.0
+
+# 3. 用 picamera2 設定中間值
+python3 - <<'EOF'
+from picamera2 import Picamera2
+picam2 = Picamera2()
+cfg = picam2.create_still_configuration()
+picam2.configure(cfg)
+picam2.set_controls({
+    "AwbEnable": False,
+    "ColourTemperature": 4000,
+    "RedGain": 1.45,
+    "BlueGain": 1.3,
+})
+picam2.start()
+picam2.capture_file("mix_stable.jpg")
+picam2.stop()
+EOF</pre></div>
+<div class="callout"><strong>為什麼選這條路徑：</strong>混合光源是 AWB 演算法的「地獄場景」——它試圖把整個畫面的白校正回白，但場景中「白」的色溫在不同區域不同。手動設定一個「折衷」的色溫和 gains，雖然任何單一區域都不完美，但整體最穩定。這是工程上「不追求完美，追求穩定」的典型取捨。</div>
+
+  <h2>深入原理擴充：CCM 的色彩空間轉換數學</h2>
+  <p>CCM（Color Correction Matrix）本質上是感測器色彩空間到 sRGB 的線性映射：</p>
+  <ul>
+    <li><strong>3×3 矩陣</strong>：[R_out, G_out, B_out] = CCM × [R_sensor, G_sensor, B_sensor]。</li>
+    <li><strong>色彩適應</strong>：感測器的光譜響應曲線（SRF）與人眼不同（如矽對紅外敏感），CCM 補償這個差異。</li>
+    <li><strong>色溫依賴</strong>：不同色溫的光源有不同的光譜功率分佈（SPD），導致感測器響應不同 → CCM 必須分色溫。</li>
+    <li><strong>矩陣性質</strong>：理想 CCM 的行和應為 1（保持亮度），副對角元素為負（色彩分離），對角元素 > 1（增強該通道）。</li>
+  </ul>
+  <div class="callout warn"><strong>大家以為沒问题但其實是陷阱：</strong>很多人以為「CCM 的副對角元素為負是因為要『減去』其他通道」，但物理意義是「色彩分離」——感測器的 R 通道實際上會收到一些 G 和 B 的光（濾鏡串擾），CCM 的負值是為了補償這個串擾。若 CCM 的負值太大，會導致色階斷裂（在平坦色彩區域出現階梯狀過渡）。</div>
+
+  <h2>診斷式疑難排解表</h2>
+  <table>
+    <tr><th>症狀</th><th>可能原因</th><th>解決方案</th></tr>
+    <tr><td>AWB 在不同光源間來回跳動</td><td>場景中多色溫混合，AWB 演算法無法收斂</td><td>手動設定固定色溫/gains；或調整 AWB 的 convergence speed</td></tr>
+    <tr><td>色卡校正後平均 ΔE < 3 但某幾色塊 ΔE > 8</td><td>CCM 的副對角元素過大，導致特定色彩過飽和</td><td>重新計算 CCM，限制副對角元素的絕對值；或增加色溫分段數</td></tr>
+    <tr><td>低色溫（2700K）下白色偏黃</td><td>AWB gains 的 R gain 不足，未完全補償色溫</td><td>用灰卡量測 2700K 下的正確 R gain；確認感測器的 AWB 範圍是否涵蓋 2700K</td></tr>
+    <tr><td>高色溫（7500K）下白色偏藍</td><td>B gain 不足或過度補償</td><td>量測 7500K 下的正確 B gain；確認是否有 IR 濾鏡干擾</td></tr>
+    <tr><td>色卡校正完美但實景色彩偏暖</td><td>CCM 針對色卡校正但場景的光譜與色卡不同</td><td>在多種光源下分別校正 CCM；使用更精確的色溫分段</td></tr>
+  </table>
+
+  <h2>進階挑戰題</h2>
+  <ol>
+    <li>用 rawpy 分析 OV5647 在 3000K 和 6500K 下的光譜響應差異（用色卡各色塊的 RAW 值推算），解釋為什麼 CCM 必須分色溫。</li>
+    <li>設計一個「AWB 穩定性」測試：在 10 秒內每幀記錄 AWB gains，計算 gains 的標準差。若 σ > 0.05 判定為不穩定。</li>
+    <li>若你要為 OV5647 建立一套完整的 CCM 表（3 個色溫段：2700K/4000K/6500K），需要拍幾張色卡？如何確保色溫段之間的過渡平滑？</li>
+  </ol>
+
   <h2>延伸閱讀</h2>
   <ul>
     <li>下一篇：<a href="unit-12.html">單元 12 · 鏡頭陰影校正</a>。</li>

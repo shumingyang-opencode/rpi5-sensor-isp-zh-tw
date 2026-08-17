@@ -106,6 +106,54 @@ dmesg | grep -i -E "ov5647|unicam"</pre></div>
     <ul><li>libcamera 五大元件與原始碼位置。</li><li>Control→register→統計資料流。</li><li>unicam 的角色與 media 節點。</li><li>DT overlay 逐欄意義。</li><li>常見錯誤。</li></ul>
   </div>
 
+  <h2>進階真實情境 Worked Example：用 media-ctl 追蹤完整管線並驗證格式一致</h2>
+  <p>場景：你換了 OV5647 的 init table，但預覽畫面出現異常的綠色條紋。需要確認是 media 管線格式不一致還是 ISP 參數問題。</p>
+  <div class="demo-block"><div class="demo-label">media 管線格式驗證</div><pre># 1. 完整列出所有 entity 與 pad format
+media-ctl -p -d /dev/media0
+
+# 輸出節錄：
+# - entity 3: ov5647 0-0036 (1 pad, 1 link)
+#     pad0: Source [fmt:SGBRG10_1X10/2592x1944]
+# - entity 6: unicam (2 pads, 1 link)
+#     pad0: Sink [fmt:SGBRG10_1X10/2592x1944]
+
+# 2. 檢查 ISP pipeline handler 的格式轉換
+media-ctl -p -d /dev/media0 | grep -A5 "rpi"
+
+# 3. 若格式不一致，手動設定（不建議但除錯用）
+# media-ctl -d /dev/media0 \
+#   --set-v4l2 "ov5647 0-0036:0[fmt:SGBRG10_1X10/2592x1944]"
+
+# 4. 用 v4l2-ctl 確認 streaming 格式
+v4l2-ctl -d /dev/video0 --list-formats-ext</pre></div>
+<div class="callout"><strong>為什麼選這條路徑：</strong>media-ctl 是 V4L2 media framework 的除錯工具，能直接顯示管線上每個 entity 的輸入/輸出格式。若 source（感測器）輸出 SGBRG10_1X10 但 sink（unicam）期望 SRGGB10，就會導致色彩偏移。這個方法比「猜」快得多——直接看格式是否匹配，30 秒內定位問題。</div>
+
+  <h2>深入原理擴充：libcamera pipeline handler 的自動格式推導機制</h2>
+  <p>libcamera 的 pipeline handler（RPi 的 <code>PipelineHandlerPiSP</code>）在 probe 時自動建立 media graph，但它的格式推導邏輯比你想的複雜：</p>
+  <ul>
+    <li><strong>感測器端</strong>：ov5647.c 的 init table 宣告支援的 format（SRGGB10、YUV420 等），pipeline handler 從中選擇「最佳」格式。</li>
+    <li><strong>ISP 端</strong>：PiSP（RPi5 的 ISP）有硬體限制——某些 format 不支援直接輸入，需要額外的轉換 entity。</li>
+    <li><strong>tuning 檔關聯</strong>：tuning 檔的格式必須與 pipeline 的實際 format 匹配，否則 ISP 會用錯誤的參數處理——症状通常是色彩偏差而非完全無畫面。</li>
+  </ul>
+  <div class="callout warn"><strong>大家以為沒問題但其實是陷阱：</strong>很多人以為「compatible 寫對了就能用」，但 DT overlay 裡的 <code>port { csi-lane = &lt;2&gt;; }</code> 若寫成 <code>csi-lane = &lt;4&gt;</code>，驅動照樣 probe 成功（因為 lane 數是在 MIPI 層檢查的），但 streaming 時 unicam 會因 lane 數不匹配而靜默失敗——dmesg 可能不會出現明顯錯誤，只會「沒有畫面」。</div>
+
+  <h2>診斷式疑難排解表</h2>
+  <table>
+    <tr><th>症狀</th><th>可能原因</th><th>解決方案</th></tr>
+    <tr><td>media-ctl 顯示 format mismatch</td><td>感測器 init table 的 format 宣告與 DT overlay 不一致</td><td>對照 ov5647.c 的 init table 與 DT overlay 的 port/csi-lane 宣告</td></tr>
+    <tr><td>rpicam-hello --list-cameras 能看到但預覽黑畫面</td><td>pipeline probe 成功但 ISP 管線未正確連接</td><td>media-ctl -p 確認 entity 間的 link 是否建立；檢查 dmesg 的 pipeline 訊息</td></tr>
+    <tr><td>改了 DT overlay 後 dmesg 沒有新訊息</td><td>overlay 修改後未 reboot（DT 在開機時載入）</td><td>sudo reboot；確認 /boot/firmware/config.txt 的 dtoverlay 行正確</td></tr>
+    <tr><td>libcamera 已看到相機但 picamera2.set_controls 無效</td><td>控制未傳到驅動層（control ID 不匹配或未 implement）</td><td>用 rpicam-still --info 確認控制是否生效；檢查 ov5647.c 是否 implement 該 control</td></tr>
+    <tr><td>streaming 幀率遠低於預期</td><td>ISP 管線格式轉換耗時、或 DMA buffer 不足</td><td>media-ctl 檢查管線複雜度；增大 CMA 預算（cma=256M）</td></tr>
+  </table>
+
+  <h2>進階挑戰題</h2>
+  <ol>
+    <li>用 <code>media-ctl -p</code> 畫出從感測器到 ISP 輸出的完整 entity 連結圖（用 ASCII 或文字描述），標出每個 link 的格式與方向（source→sink）。</li>
+    <li>設計一個「overlay 健康檢查」腳本：自動比對 DT overlay 宣告的 I2C 位址、lane 數、reset-gpios 與 i2cdetect / media-ctl 的實際結果，找出不匹配項。</li>
+    <li>若你想在 RPi5 上同時使用 OV5647（Camera 0）和自訂感測器（Camera 1），需要為 Camera 1 寫一份 DT overlay。描述你會如何確定 compatible、reg、clocks、reset-gpios 的值。</li>
+  </ol>
+
   <h2>延伸閱讀</h2>
   <ul>
     <li>下一篇：<a href="unit-05.html">單元 5 · 第一個鏡頭跑起來</a>。</li>

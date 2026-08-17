@@ -139,6 +139,55 @@ echo "已存 test.dng（RAW）"</pre></div>
     <ul><li>啟用相機並逐欄讀懂 list-cameras。</li><li>rpicam-apps 旗標全表與調校用法。</li><li>固定參數拍 RAW 的意義與範本。</li><li>用 --info 觀察 AE 狀態。</li><li>picamera2 控制曝光/AWB。</li></ul>
   </div>
 
+  <h2>進階真實情境 Worked Example：用 rpicam-apps 比較兩個 tuning 檔的差異</h2>
+  <p>場景：你手上有兩版 tuning 檔（v1=出廠預設、v2=你手動調整過 NR/Sharpen），需要量化比較兩者在相同場景下的差異。</p>
+  <div class="demo-block"><div class="demo-label">A/B tuning 比較腳本</div><pre>#!/bin/bash
+# 固定參數拍攝，比較 tuning 效果
+SHUTTER=20000
+GAIN=1.0
+
+# v1（預設 tuning）
+rpicam-still --raw --shutter $SHUTTER --gain $GAIN \
+  --awb off --awbgains 1,1 \
+  --tuning-file /usr/share/libcamera/ipa/rpi/pisp/ov5647.json \
+  -o compare_v1.jpg
+
+# v2（手動 tuning）
+rpicam-still --raw --shutter $SHUTTER --gain $GAIN \
+  --awb off --awbgains 1,1 \
+  --tuning-file ./my_tuning_v2.json \
+  -o compare_v2.jpg
+
+echo "拍攝完成，比較兩張圖的差異"
+ls -la compare_v1.jpg compare_v2.jpg</pre></div>
+<div class="callout"><strong>為什麼選這條路徑：</strong>用 --tuning-file 可以在<strong>完全相同的曝光條件</strong>下比較兩個 tuning 檔的效果。配合 --awb off 和 --awbgains 1,1 可以排除 AWB 干擾，純粹比較 ISP 參數（NR/Sharpen/CCM）的差異。這是 tuning 迭代的基本功——沒有 A/B 比較，你不知道改動是否真的改善了畫質。</div>
+
+  <h2>深入原理擴充：rpicam-apps 與 libcamera 的控制抽象層</h2>
+  <p>rpicam-apps 是 libcamera 的前端應用，但它對控制的處理比你想的複雜：</p>
+  <ul>
+    <li><strong>--shutter</strong> 設的是 <code>ExposureTime</code>（µs），libcamera 內部會換算成感測器的曝光行數。若行數超出 frame length 限制，libcamera 會<strong>自動截斷</strong>而非報錯——你設 50ms 但實際可能只曝光 33ms。</li>
+    <li><strong>--gain</strong> 設的是 <code>AnalogueGain</code>（線性值），驅動會查 gain map 轉成暫存器值。OV5647 的 gain map 是非線性的——gain=2.0 不代表訊號強度是 gain=1.0 的兩倍。</li>
+    <li><strong>--awb off</strong> 後的 --awbgains 是「原始乘數」，不會經過 libcamera 的 AWB 演算法。這意味著你看到的是感測器 + 鏡頭的<strong>原始色彩響應</strong>，不帶任何校正。</li>
+  </ul>
+  <div class="callout warn"><strong>大家以為沒問題但其實是陷阱：</strong>很多人以為「rpicam-still --raw 拍的 RAW 完全不受 ISP 影響」，但實際上 libcamera 在存 DNG 前已經套用了部分 metadata（如 BlackLevel、AsShotNeutral）。若你要做「純淨 RAW 分析」，需要從 v4l2-ctl 直接擷取，而非透過 rpicam-apps——這在後續單元 8 的 RAW 驗證中很重要。</div>
+
+  <h2>診斷式疑難排解表</h2>
+  <table>
+    <tr><th>症狀</th><th>可能原因</th><th>解決方案</th></tr>
+    <tr><td>rpicam-still --raw 拍出的 DNG 用 rawpy 讀取時報錯</td><td>DNG 格式版本不相容或 rawpy 版本過舊</td><td>升級 rawpy（pip install -U rawpy）；確認 DNG 是 libcamera 產生的標準格式</td></tr>
+    <tr><td>--tuning-file 指定後畫面反而變差</td><td>tuning 檔的 format/version 與當前 libcamera 版本不匹配</td><td>先用預設 tuning 確認基線；diff 比對你的 tuning 與預設差異</td></tr>
+    <tr><td>rpicam-hello 預覽正常但 rpicam-still 拍出全黑</td><td>AE 在拍照瞬間收斂到錯誤值，或 --shutter 設太低</td><td>加 --info 確認曝光值；用固定 --shutter 排除 AE 干擾</td></tr>
+    <tr><td>picamera2 拍出的圖比 rpicam-still 暗</td><td>picamera2 的 default tuning 與 rpicam-apps 不同</td><td>用 --tuning-file 指定同一個 tuning 檔確保一致性</td></tr>
+    <tr><td>DNG 檔的 metadata 裡 black_level 為 0</td><td>libcamera 版本過舊，未正確寫入 DNG metadata</td><td>升級 libcamera（sudo apt upgrade libcamera）；或手動在 DNG 中修正 black_level</td></tr>
+  </table>
+
+  <h2>進階挑戰題</h2>
+  <ol>
+    <li>寫一個 Python 腳本，自動化「固定曝光/增益拍攝 → rawpy 讀取 → 計算各通道均值/標準差」的完整流程，輸出 CSV 報告。</li>
+    <li>用 rpicam-still 的 --info 輸出，追蹤 AE 收斂過程：每秒拍一張並記錄 ExposureTime/AnalogueGain，畫出收斂曲線。</li>
+    <li>若要確保「不同時間拍的 RAW 可比較」，除了固定曝光/增益/AWB 外，還需要控制哪些環境變數？</li>
+  </ol>
+
   <h2>延伸閱讀</h2>
   <ul>
     <li>下一篇：<a href="unit-06.html">單元 6 · Sensor Bring-up 與除錯</a>。</li>

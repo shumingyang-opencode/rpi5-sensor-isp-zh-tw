@@ -127,6 +127,50 @@ $ sudo i2ctransfer -y 22 w2@0x36 0x30 0x34 r1
     <ul><li>I2C 位元級（START/ACK/16-bit 位址序）。</li><li>i2cdetect / i2cget 讀 OV5647 ID。</li><li>i2ctransfer 讀寫與回讀驗證。</li><li>OV5647 page/bank 機制與關鍵 register 群。</li><li>安全準則。</li></ul>
   </div>
 
+  <h2>進階真實情境 Worked Example：用 i2ctransfer 追蹤 OV5647 streaming 時的曝光暫存器</h2>
+  <p>場景：OV5647 正在串流，你想即時觀察 AE 演算法如何調整曝光暫存器。需要在不中斷串流的情況下，每秒讀取一次曝光值。</p>
+  <div class="demo-block"><div class="demo-label">即時監控曝光 register</div><pre>#!/bin/bash
+# 持續監控 OV5647 曝光 register（不中斷 streaming）
+echo "timestamp,exp_hi,exp_mid,exp_lo,total_lines"
+for i in $(seq 1 60); do
+  TS=$(date +%s.%N)
+  <span class="hl-c"># 讀 0x3501（高）、0x3502（中）、0x3503（低）</span>
+  EH=$(sudo i2ctransfer -y 22 w2@0x36 0x35 0x01 r1 2>/dev/null | awk '{print $1}')
+  EM=$(sudo i2ctransfer -y 22 w2@0x36 0x35 0x02 r1 2>/dev/null | awk '{print $1}')
+  EL=$(sudo i2ctransfer -y 22 w2@0x36 0x35 0x03 r1 2>/dev/null | awk '{print $1}')
+  <span class="hl-c"># 組合成曝光行數（16-bit，高 byte 在前）</span>
+  TOTAL=$(( (16#${EH#0x} << 8) | (16#${EM#0x}) ))
+  echo "$TS,$EH,$EM,$EL,$TOTAL"
+  sleep 1
+done > exposure_log.csv</pre></div>
+<div class="callout"><strong>為什麼選這條路徑：</strong>用 i2ctransfer 而非 libcamera controls 是因為你想看到<strong>感測器暫存器的實際值</strong>，而非 libcamera 的 µs 抽象。這能揭露「libcamera 設的值」與「感測器實際收到的值」之間的差異——例如 driver 的 gain map 導致非線性映射。注意：I2C 讀取會短暫佔用匯流排，若太頻繁可能影響 streaming，建議 ≤5Hz。</div>
+
+  <h2>深入原理擴充：I2C 匯流排的电气限制與 RPi5 的多匯流排架構</h2>
+  <p>RPi5 有兩條 Camera I2C 匯流排（i2c-22 對應 Camera 0、i2c-10 對應 Camera 1），各自獨立。但有幾個容易忽略的电气限制：</p>
+  <ul>
+    <li><strong>上拉電阻匹配</strong>：RPi5 Camera 0 的 I2C 預設上拉到 1.8V（因 OV5647 的 I/O 電壓為 1.8V）。若你的客製板用 3.3V 上拉，可能導致感測器 I/O 損壞。</li>
+    <li><strong>匯流排電容限制</strong>：I2C Fast Mode（400kHz）要求總電容 ≤ 400pF。15cm 排線 + 感測器 + GPIO 穩約 150-200pF，加上示波器探棒（~15pF）已接近上限。</li>
+    <li><strong>多感測器位址衝突</strong>：若兩顆 OV5647 接同一匯流排，I2C 位址都是 0x36——完全無法區分。必須分別接 Camera 0 和 Camera 1 的獨立匯流排。</li>
+  </ul>
+  <div class="callout warn"><strong>大家以為沒問題但其實是陷阱：</strong>很多人以為「i2cdetect 掃到 0x36 就代表 I2C 完全正常」，但 i2cdetect 是在<strong>靜止狀態</strong>下掃描的。當感測器 streaming 時，I2C 匯流排可能因 HS 訊號耦合而產生雜訊——症状是「i2c 讀值偶爾跳動」。這在排線品質差時尤其明顯，需要用示波器在 streaming 時觀察 SDA 波形。</div>
+
+  <h2>診斷式疑難排解表</h2>
+  <table>
+    <tr><th>症狀</th><th>可能原因</th><th>解決方案</th></tr>
+    <tr><td>i2cdetect 掃到 0x36 但 i2cget 讀回 0xFF</td><td>感測器 RESET 未釋放，I2C 雖通但暫存器不可存取</td><td>確認 DT overlay 的 reset-gpios 正確；用 GPIO 工具手動 toggle reset 腳位</td></tr>
+    <tr><td>i2cget 讀值偶爾跳動（±1）</td><td>匯流排雜訊或上拉不足導致上升緣緩慢</td><td>降低 I2C 速度到 100kHz（i2cset -y 22 0x00 0x04 設控制暫存器）；檢查上拉電阻</td></tr>
+    <tr><td>兩顆感測器都掃不到</td><td>I2C 匯流排被其他 device 佔用或 SDA/SCL 接反</td><td>用 GPIO 18/19（i2c-22）和 GPIO 0/1（i2c-10）的 pin mux 確認；排除其他 I2C 設備</td></tr>
+    <tr><td>i2ctransfer 寫入後回讀值不同</td><td>暫存器是 write-only 或需要 delay 才生效</td><td>查 datasheet 確認暫存器屬性；部分 OV暫存器需等待 VBlank 才更新</td></tr>
+    <tr><td>probe 成功但讀回的 ID 不是 0x5647</td><td>I2C 位址 0x36 上接的是另一顆感測器</td><td>讀完整的 0x300A/0x300B 確認型號；查板子原理圖確認感測器型號</td></tr>
+  </table>
+
+  <h2>進階挑戰題</h2>
+  <ol>
+    <li>寫一個 Shell 腳本，透過 I2C 動態修改 OV5647 的 PLL 暫存器（0x3034-0x3037），觀察 pixel clock 變化對幀率的影響。注意：修改 PLL 可能導致串流暫時中斷。</li>
+    <li>RPi5 的 i2c-22 與 i2c-10 各自的最大可靠傳輸速率是多少？設計一個腳本逐步提升 I2C 速度，找出兩條匯流排的速率上限。</li>
+    <li>若要在同一條 I2C 匯流排上同時控制 OV5647（0x36）和一顆 EEPROM（假設 0x50），會遇到什麼問題？如何解決？</li>
+  </ol>
+
   <h2>延伸閱讀</h2>
   <ul>
     <li>下一篇：<a href="unit-04.html">單元 4 · 相機框架與驅動</a>。</li>

@@ -132,6 +132,55 @@
     <ul><li>Sharpen/Contrast 與成對原則。</li><li>RPi5 HDR 與 tone mapping 取捨。</li><li>tuning 檔各 algorithm 區塊。</li><li>五步調校工作流。</li><li>回歸測試清單。</li></ul>
   </div>
 
+  <h2>進階真實情境 Worked Example：用 Python 從 tuning JSON 畫出 NR vs Sharpen 的效果曲線</h2>
+  <p>場景：你要量化「NR strength 從 0 到 1 時，平坦區 σ 和紋理區對比的變化」，找出最佳平衡點。</p>
+  <div class="demo-block"><div class="demo-label">NR/Sharpen 量化比較</div><pre>#!/bin/bash
+# 用不同 NR strength 拍攝同一場景
+for NR in 0 0.2 0.4 0.6 0.8 1.0; do
+  <span class="hl-c"># 建立臨時 tuning 檔（修改 Denoise strength）</span>
+  cp base.json tuning_nr${NR}.json
+  python3 -c "
+import json
+with open('tuning_nr${NR}.json','r') as f: d=json.load(f)
+for a in d['algorithms']:
+    if 'Denoise' in a: a['Denoise']['strength']=$NR
+with open('tuning_nr${NR}.json','w') as f: json.dump(d,f,indent=2)
+"
+  rpicam-still --raw --tuning-file tuning_nr${NR}.json \
+    --shutter 20000 --gain 4 --awb off --awbgains 1,1 \
+    -o nr_test_${NR}.jpg
+done
+
+echo "拍攝完成，用 Python 分析各張圖的 σ 和邊緣對比"</pre></div>
+<div class="callout"><strong>為什麼選這條路徑：</strong>透過動態生成不同 NR strength 的 tuning 檔，可以<strong>精確控制單一變數</strong>。用 rawpy 分析 RAW（而非 JPEG），能排除 JPEG 壓縮的干擾。量化方法：用 numpy 計算平坦區（如天空）的 σ 代表雜訊；用 Laplacian 運算子計算紋理區（如樹葉）的邊緣響應代表清晰度。畫出兩條曲線的交點就是最佳平衡。</div>
+
+  <h2>深入原理擴充：RPi5 HDR 的多幀合成與 motion compensation</h2>
+  <p>RPi5 的 HDR 模式是「多幀合成」——快速連續拍攝不同曝光的幀，再合成高動態範圍影像：</p>
+  <ul>
+    <li><strong>三幀合成</strong>：短曝光（保留亮部細節）+ 中曝光（正常）+ 長曝光（保留暗部細節）。三幀在 ISP 內合成。</li>
+    <li><strong>Motion compensation</strong>：若三幀之間有運動，合成後會出現 ghosting（重影）。RPi5 的 ISP 有基礎的 motion detection，但效果有限——運動場景建議用單幀 + tone mapping。</li>
+    <li><strong>幀率代價</strong>：HDR 模式需要拍三幀才能輸出一幀，幀率降為 1/3。30fps 的場景在 HDR 下只有 10fps。</li>
+    <li><strong>Dynamic Range 擴展</strong>：理論上三幀可擴展 ~18dB（3 EV），實際因 motion 和合成演算法限制，約 12-15dB。</li>
+  </ul>
+  <div class="callout warn"><strong>大家以為沒问题但其實是陷阱：</strong>很多人以為「HDR 模式會自動選擇最佳曝光組合」，但 RPi5 的 HDR 實際上<strong>曝光組合是固定的</strong>（短/中/長各佔 1/3 時間）。若場景的動態範圍主要在暗部（如夜景），短曝光幀可能「太暗而無用」——此時用單幀 + 手動 tone mapping 可能效果更好。</div>
+
+  <h2>診斷式疑難排解表</h2>
+  <table>
+    <tr><th>症狀</th><th>可能原因</th><th>解決方案</th></tr>
+    <tr><td>NR 開到 1.0 畫面仍有很多雜訊</td><td>增益太高（雜訊源頭過強），NR 無法完全消除</td><td>降增益是根本；NR 只能收尾。接受「增益上限」的物理限制</td></tr>
+    <tr><td>Sharpen 開強後邊緣出現光暈（halo）</td><td>Sharpen 過度——邊緣過衝</td><td>降低 Sharpen 強度；用 200% 放大檢視邊緣品質</td></tr>
+    <tr><td>HDR 模式下運動物體有重影</td><td>多幀合成的 motion compensation 不足</td><td>切回單幀模式；或降低 HDR 強度（減少幀數）</td></tr>
+    <tr><td>tuning JSON 改了但畫面沒變化</td><td>JSON 格式錯誤或 libcamera 未重啟</td><td>用 python3 -m json.tool 驗證語法；重啟 rpicam-hello</td></tr>
+    <tr><td>暗部有色彩斷層（color banding）</td><td>Gamma 曲線的暗部階梯太粗，或 CCM 的色階過飽和</td><td>調整 Contrast/Gamma 區塊；降低 CCM 的副對角元素</td></tr>
+  </table>
+
+  <h2>進階挑戰題</h2>
+  <ol>
+    <li>用 Python 建立一個「NR/Sharpen 效果評分器」：輸入兩張圖（NR=0 和 NR=X），自動計算平坦區 σ 降低比例和紋理區 Laplacian 降低比例，輸出綜合評分。</li>
+    <li>分析 libcamera tuning JSON 中所有 algorithm 區塊的完整結構，畫出「參數 → 效果」對照圖。</li>
+    <li>設計一個「回歸測試自動化」腳本：依序在室內/日光/逆光/低光四個場景各拍一張，與基線圖比較 ΔE 和 σ，自動判斷是否有回歸。</li>
+  </ol>
+
   <h2>延伸閱讀</h2>
   <ul>
     <li>下一篇：<a href="unit-15.html">單元 15 · 四平台比較</a>。</li>

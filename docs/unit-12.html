@@ -131,6 +131,62 @@ corner = 四角平均
     <ul><li>lens shading 物理成因（cos⁴ 與偏色）。</li><li>LSC 網格與插值機制。</li><li>libcamera LSC 校正實作。</li><li>量測暗角比驗證。</li><li>LSC 組合特有、需重做。</li></ul>
   </div>
 
+  <h2>進階真實情境 Worked Example：用 Python 自動產生 LSC 校正網格</h2>
+  <p>場景：你沒有積分球，但有一張用 OV5647 拍攝的均勻白牆照片。需要從這張照片推算 LSC 網格增益。</p>
+  <div class="demo-block"><div class="demo-label">從白牆照片推算 LSC 網格</div><pre>python3 - <<'EOF'
+import rawpy, numpy as np
+raw = rawpy.imread('white_wall.dng').raw_image.astype(float)
+h, w = raw.shape
+grid_h, grid_w = 13, 17  <span class="hl-c"># libcamera 標準網格</span>
+cell_h, cell_w = h // grid_h, w // grid_w
+center_roi = raw[h//2-50:h//2+50, w//2-50:w//2+50]
+center_val = center_roi.mean()
+
+print(f"{'':>8}", end="")
+for gx in range(grid_w):
+    print(f"col{gx:2d}", end=" ")
+print()
+
+for gy in range(grid_h):
+    print(f"row{gy:2d}: ", end="")
+    for gx in range(grid_w):
+        cell = raw[gy*cell_h:(gy+1)*cell_h, gx*cell_w:(gx+1)*cell_w].mean()
+        gain = center_val / cell if cell > 0 else 99
+        print(f"{gain:5.2f}", end=" ")
+    print()
+
+print(f"\n中心值: {center_val:.1f}")
+print(f"最暗角落增益: {center_val / raw[20:80, 20:80].mean():.2f}")
+EOF</pre></div>
+<div class="callout"><strong>為什麼選這條路徑：</strong>白牆是「免費的均勻灰源」——雖然不如積分球完美，但在沒有專業設備時是最佳替代。用 rawpy 直接分析 RAW（而非 JPEG/PNG），可以精確量測每個像素通道的亮度，避免 JPEG 壓縮和色彩處理的干擾。產生的網格增益可以直接填入 libcamera tuning JSON 的 LensShading 區塊。</div>
+
+  <h2>深入原理擴充：cos⁴ law 的精確數學與鏡頭特性</h2>
+  <p>cos⁴ law 是 LSC 的物理基礎，但實務中鏡頭的 shading 比純 cos⁴ 更複雜：</p>
+  <ul>
+    <li><strong>理想 cos⁴</strong>：I(θ) = I₀ × cos⁴(θ)，θ 是入射角。θ=30° 時 cos⁴(30°)=0.5625，亮度衰減 44%。</li>
+    <li><strong>實際偏離</strong>：真實鏡頭有光圈漸暈（vignetting）、微透鏡陣列效應、以及 IR 濾鏡的角度依賴性。OV5647 的 1/4" 模組在 f/2.8 下，角落衰減可能達 60%（比 cos⁴ 的 44% 更嚴重）。</li>
+    <li><strong>色偏機制</strong>：微透鏡在大入射角下對不同波長的光聚焦效率不同 → 角落的 R/G/B 衰減比例不一致 → 角落偏色（常見偏紫或偏綠）。</li>
+    <li><strong>溫度影響</strong>：IR 濾鏡的截止波長隨溫度漂移（~0.1nm/°C），在高溫下可能讓更多紅外光通過 → 角落偏紅。</li>
+  </ul>
+  <div class="callout warn"><strong>大家以為沒问题但其實是陷阱：</strong>很多人以為「LSC 校正一次就永久有效」，但 OV5647 的微透鏡陣列在<strong>溫度變化 ±15°C</strong> 後，shading 曲線會改變 3-5%——這是因為塑膠鏡筒的熱膨脹改變了 lens-to-sensor 的距離。在戶外應用（溫差大）中，可能需要根據溫度動態調整 LSC。</div>
+
+  <h2>診斷式疑難排解表</h2>
+  <table>
+    <tr><th>症狀</th><th>可能原因</th><th>解決方案</th></tr>
+    <tr><td>LSC 校正後暗角改善但四角偏紫</td><td>LSC 只校正了亮度，未分 R/Gr/Gb/B 通道</td><td>確認 LSC 網格的四通道各自獨立；偏紫是 R/B 衰減比例不同</td></tr>
+    <tr><td>換鏡頭後暗角比從 0.7 變成 0.5</td><td>新鏡頭的 shading 特性不同（LSC 是鏡頭+感測器組合特有）</td><td>必須重新校正 LSC；不能沿用舊鏡頭的參數</td></tr>
+    <tr><td>LSC 網格邊界處出現微弱網格狀紋路</td><td>網格節點過疏，雙線性插值無法平滑過渡</td><td>加密網格節點（如 17×13→33×25）；或用更高階插值</td></tr>
+    <tr><td>均勻灰拍攝的四角亮度不一致（已校正 LSC）</td><td>LSC 校正用的拍攝環境不夠均勻（有陰影或反射）</td><td>用更均勻的光源重做校正；或增加曝光範圍取平均</td></tr>
+    <tr><td>低光下 LSC 效果比高光下差</td><td>低光下暗角區域的雜訊被 LSC 增益放大</td><td>在低光下降低 LSC 增益上限；或接受暗角（不校正）</td></tr>
+  </table>
+
+  <h2>進階挑戰題</h2>
+  <ol>
+    <li>用 rawpy 分析 OV5647 在不同光圈（若有可變光圈鏡頭）下的 LSC 差異，畫出「光圈 vs 暗角比」的關係圖。</li>
+    <li>設計一個「LSC 網格密度優化」實驗：分別用 13×17、25×19、33×25 的網格做 LSC，量化比較暗角比改善程度與 tuning 檔大小的 trade-off。</li>
+    <li>若 OV5647 的 IR 濾鏡在高溫下截止波長漂移了 5nm，LSC 的 R 通道增益需要如何調整？推導修正公式。</li>
+  </ol>
+
   <h2>延伸閱讀</h2>
   <ul>
     <li>下一篇：<a href="unit-13.html">單元 13 · 雜訊與降噪</a>。</li>

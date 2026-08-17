@@ -118,6 +118,53 @@ picam2.set_controls({"ExposureTime": 20000})   <span class="hl-c"># 50Hz 整數�
     <ul><li>曝光三要素 register 位元級與公式。</li><li>Worked example 從 register 算曝光。</li><li>libcamera 測光模式與 EV。</li><li>banding 成因與 50/60Hz。</li><li>AE 受限判斷與除錯方向。</li></ul>
   </div>
 
+  <h2>進階真實情境 Worked Example：在日光燈下拍攝並分析 banding 的精確週期</h2>
+  <p>場景：你在室內日光燈環境下拍攝，畫面出現明顯的水平明暗條紋。需要確認是 50Hz 還是 60Hz 的 banding，並計算正確的曝光值。</p>
+  <div class="demo-block"><div class="demo-label">banding 週期分析</div><pre># 1. 用不同曝光拍攝，觀察條紋變化
+for EXP in 8000 8333 10000 16666 20000 33333; do
+  rpicam-still --raw --shutter $EXP --gain 1 \
+    --awb off --awbgains 1,1 -o band_${EXP}us.dng 2>/dev/null
+done
+
+# 2. 分析各曝光下的亮度週期性
+python3 - <<'EOF'
+import rawpy, numpy as np
+for exp in [8000,8333,10000,16666,20000,33333]:
+    raw = rawpy.imread(f'band_{exp}us.dng').raw_image
+    roi = raw[900:1100, 500:2000]  <span class="hl-c"># 橫向 ROI</span>
+    row_means = roi.mean(axis=1)
+    std = row_means.std()
+    print(f"曝光{exp}µs: 行間亮度標準差={std:.2f} (越大=banding越嚴重)")
+EOF</pre></div>
+<div class="callout"><strong>為什麼選這條路徑：</strong>用不同曝光拍攝同一場景，可以找出 banding 最嚴重的曝光值——那就是「非半週期整數倍」的曝光。50Hz 的半週期是 10ms（10000µs），60Hz 是 8.33ms（8333µs）。若 10000µs 的 std 最小，代表是 50Hz 環境；若 8333µs 最小，代表是 60Hz。這個方法比「看起來有沒有條紋」更精確。</div>
+
+  <h2>深入原理擴充：OV5647 的 AEC 暫存器與行曝光時序</h2>
+  <p>OV5647 的曝光是<strong>行級（line-based）</strong>的，不是微秒級的：</p>
+  <ul>
+    <li><strong>曝光行數</strong>：由 0x3501（高 8 位）和 0x3502（低 8 位）控制，共 16 位。實際曝光時間 = 曝光行數 × row_time。</li>
+    <li><strong>row_time</strong>：取決於 PLL 配置和像素時鐘。2592×1944@30fps 時，row_time ≈ 11.6µs。所以 libcamera 的 ExposureTime=20000µs 換算成行數約 20000/11.6 ≈ 1724 行。</li>
+    <li><strong>frame length（VTS）</strong>：2592×1944 模式下 VTS ≈ 1968 行。若曝光行數 > VTS，感測器會「卡在曝光」→ 幀率下降或全黑。</li>
+    <li><strong>曝光與行同步</strong>：每行的曝光起點由 Timing Generator 控制，行與行之間的曝光起點差為 1 row_time。這就是 Rolling Shutter 的「行間時間差」。</li>
+  </ul>
+  <div class="callout warn"><strong>大家以為沒问题但其實是陷阱：</strong>很多人以為「libcamera 設 ExposureTime=20000µs 就真的曝光 20000µs」，但 libcamera 內部會<strong>向上取整到 row_time 的整數倍</strong>。若 row_time=11.6µs，20000/11.6=1724.1，libcamera 會取 1725 行 × 11.6µs = 20010µs——微小的偏差在高精度場景（如 banding 分析）可能有意義。</div>
+
+  <h2>診斷式疑難排解表</h2>
+  <table>
+    <tr><th>症狀</th><th>可能原因</th><th>解決方案</th></tr>
+    <tr><td>室內日光燈下有水平明暗條紋</td><td>曝光時間非光源半週期的整數倍（50Hz→10ms, 60Hz→8.33ms）</td><td>固定曝光為半週期整數倍（如 10000/20000µs for 50Hz）</td></tr>
+    <tr><td>AE 模式下 banding 消失但固定曝光時出現</td><td>AE 的 banding filter 自動同步了；手動曝光時需自行同步</td><td>啟用 libcamera 的 auto-banding 或手動設整數倍曝光</td></tr>
+    <tr><td>曝光設為 10000µs 但仍有輕微條紋</td><td>光源非純正弦波閃爍（LED 可能有高諧波）</td><td>嘗試 5000µs（半半週期）或用全局快門感測器</td></tr>
+    <tr><td>AE 收斂後畫面過暗</td><td>場景亮度低，AE 已達曝光上限或增益上限</td><td>放寬 AE 範圍（增大 max_shutter/max_gain）或補光</td></tr>
+    <tr><td>戶外日光下也有輕微水平條紋</td><td>非 banding——可能是 rolling shutter 與 PWM 光源（如 LED 車燈）的交互</td><td>確認光源類型；PWM 光源需用全局快門或同步觸發</td></tr>
+  </table>
+
+  <h2>進階挑戰題</h2>
+  <ol>
+    <li>用示波器量測 OV5647 的 frame sync 訊號（若可接觸），驗證 row_time 是否與 PLL 配置一致。</li>
+    <li>設計一個「自動 banding 偵測」腳本：拍一張 RAW，分析行間亮度的週期性，自動判斷光源是 50Hz/60Hz/DC。</li>
+    <li>若場景中同時有 50Hz 日光燈和 60Hz LED 燈，會出現什麼症狀？如何處理？</li>
+  </ol>
+
   <h2>延伸閱讀</h2>
   <ul>
     <li>下一篇：<a href="unit-11.html">單元 11 · 白平衡與色彩</a>。</li>

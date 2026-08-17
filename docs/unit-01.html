@@ -136,6 +136,65 @@ dmesg | grep -i -E "unicam|csi|ov5647" | tail -5</pre></div>
     <ul><li>CSI-2 四層模型與 D-PHY HS/LP。</li><li>RPi5 15-pin 腳位與排線 SOP。</li><li>libcamera 四層與各層操作對象。</li><li>感測器選擇三問題與可用性。</li><li>常見誤解澄清。</li></ul>
   </div>
 
+  <h2>進階真實情境 Worked Example：雙攝影機同時串流的管線配置</h2>
+  <p>場景：RPi5 同時接 OV5647（Camera 0）與 OV9281（Camera 1），要同時錄影用於雙目視覺。</p>
+  <div class="demo-block"><div class="demo-label">雙鏡頭同時串流</div><pre># 1. 確認兩顆都被 libcamera 偵測
+rpicam-hello --list-cameras
+# 顯示：0: ov5647  1: ov9281
+
+# 2. 用 picamera2 同時串流（雙 stream）
+python3 - <<'EOF'
+from picamera2 import Picamera2
+import time
+
+cam0 = Picamera2(0)   <span class="hl-c"># OV5647</span>
+cam1 = Picamera2(1)   <span class="hl-c"># OV9281</span>
+
+cfg0 = cam0.create_video_configuration(
+    main={"size": (1280, 720), "format": "RGB888"})
+cfg1 = cam1.create_video_configuration(
+    main={"size": (640, 480), "format": "RGB888"})
+
+cam0.configure(cfg0)
+cam1.configure(cfg1)
+cam0.start()
+cam1.start()
+time.sleep(3)
+cam0.stop()
+cam1.stop()
+print("雙鏡頭串流完成")
+EOF
+
+# 3. 檢查 DMA buffer 分配
+dmesg | grep -i "dma\|buffer\|cma" | tail -5</pre></div>
+<div class="callout"><strong>為什麼選這條路徑：</strong>RPi5 的 BCM2712 ISP 只有<strong>一條硬體管線</strong>，但 libcamera 可以透過 software pipeline 同時處理多個 Camera 節點。用 picamera2 而非 rpicam-apps 是因為前者允許更精細的 buffer 配置與雙 stream 控制。注意 OV9281 用 global shutter、OV5647 用 rolling——兩者的曝光控制邏輯完全不同，不能共用同一組 tuning。</div>
+
+  <h2>深入原理擴充：CSI-2 D-PHY 的 HS/LP 切換與通道佔用</h2>
+  <p>CSI-2 D-PHY 的 HS（High-Speed）與 LP（Low-Power）模式之間的切換，不是「瞬間」完成的：</p>
+  <ul>
+    <li><strong>LP→HS 切換</strong>：需經 ULPS（Ultra Low Power State）→ HS-Rqst → HS-Prepare → HS-Trail，整個序列約數 µs。</li>
+    <li><strong>BTA（Bus Turn-Around）</strong>：方向切換時，通道必須回到 LP 模式，這段時間通道不可用。</li>
+    <li><strong>RPi5 的 unicam 驅動</strong>在收到 SOF（Start-of-Frame）後才鎖定 HS 模式；若 LP→HS 切換太慢，會錯過幀頭 → dmesg 出現「frame sync timeout」。</li>
+  </ul>
+  <div class="callout warn"><strong>大家以為沒問題但其實是陷阱：</strong>很多人以為「排線插好、i2c 通了就沒問題」，但 D-PHY 的 HS 訊號完整性取決於排線阻抗（差動 100Ω ±10%）。一條 15cm 的廉價排線在 1.5 Gbps 下可能導致眼圖閉合——症状是「偶爾掉幀」而非「完全沒畫面」，很容易被忽略。</div>
+
+  <h2>診斷式疑難排解表</h2>
+  <table>
+    <tr><th>症狀</th><th>可能原因</th><th>解決方案</th></tr>
+    <tr><td>dmesg 出現「unicam: frame sync timeout」</td><td>D-PHY HS 切換超時，排線訊號完整性差</td><td>更換短排線（≤10cm）、確認金手指接觸、用示波器量 HS 眼圖</td></tr>
+    <tr><td>rpicam-hello --list-cameras 只看到一顆</td><td>另一顆的 I2C 位址衝突或 DT overlay 未啟用</td><td>sudo i2cdetect -y 22 和 -y 10 分別檢查；確認 /boot/firmware/config.txt 有兩筆 dtoverlay</td></tr>
+    <tr><td>雙鏡頭同時串流時帧率明顯下降</td><td>DMA buffer/CMA 不足，ISP 管線排程瓶頸</td><td>加大 CMA（/boot/firmware/cmdline.txt 加 cma=256M）、降低單顆解析度</td></tr>
+    <tr><td>Camera 1 預覽有畫面但色彩全錯</td><td>OV9281 是黑白感測器，被誤判為彩色</td><td>確認 tuning 檔對應 OV9281（無 CCM 區塊）；不要套 OV5647 的 tuning</td></tr>
+    <tr><td>開機後 dmesg 無任何 ov5647 訊息</td><td>DT overlay 未載入或 compatible 字串不匹配</td><td>sudo dtoverlay -a | grep ov5647；檢查 /boot/firmware/config.txt 的 dtoverlay=ov5647 行</td></tr>
+  </table>
+
+  <h2>進階挑戰題</h2>
+  <ol>
+    <li>用 <code>media-ctl -p -d /dev/media0</code> 畫出完整的 media graph，標出每個 entity 的 role（source/sink）與 pad format。若把 OV5647 的 lane 數從 2 改成 4（假設硬體支援），media graph 會有何變化？</li>
+    <li>設計一個「排線品質快速篩選」腳本：連續拍 100 張 RAW，統計每張的 frame CRC 錯誤數。若任何一張 CRC 錯誤 > 0，判定排線不合格。</li>
+    <li>RPi5 同時接 OV5647 + OV9281 時，兩顆的 XCLK 頻率是否必须相同？查 datasheet 說明原因。</li>
+  </ol>
+
   <h2>延伸閱讀</h2>
   <ul>
     <li>下一篇：<a href="unit-02.html">單元 2 · 影像感測器基礎</a>。</li>

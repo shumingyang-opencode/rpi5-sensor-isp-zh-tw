@@ -131,6 +131,66 @@ EOF</pre></div>
     <ul><li>四種雜訊物理與模型。</li><li>σ vs 增益量測與增益上限。</li><li>libcamera NR 三類型與平衡。</li><li>DPC 與 NR 分工。</li><li>降噪調校流程。</li></ul>
   </div>
 
+  <h2>進階真實情境 Worked Example：用遮光板量測 OV5647 的 read noise floor</h2>
+  <p>場景：你要確定 OV5647 的 read noise 底線，以便設定增益上限和 NR 強度。</p>
+  <div class="demo-block"><div class="demo-label">read noise 精確量測</div><pre>#!/bin/bash
+# 完全遮光 + 短曝光（最小化 dark current）
+# 短曝光讓 dark current 影響最小，量到的是純 read noise
+for GAIN in 1 2 4 8; do
+  rpicam-still --raw --gain $GAIN --shutter 1000 \
+    --awb off --awbgains 1,1 -o rn_g${GAIN}.dng 2>/dev/null
+done
+
+python3 - <<'EOF'
+import rawpy, numpy as np
+print("gain | read_noise(e-) | dark_current_offset")
+print("-----|---------------|-------------------")
+for g in [1,2,4,8]:
+    raw = rawpy.imread(f'rn_g{g}.dng').raw_image.astype(float)
+    roi = raw[600:1400, 600:1400]
+    std = roi.std()
+    mean = roi.mean()
+    # 假設 10-bit ADC, 1 LSB ≈ 1 e- (簡化)
+    print(f"  {g}  |     {std:5.1f}     |       {mean:.1f}")
+    
+    <span class="hl-c"># 量測不同區域的雜訊一致性</span>
+    zones = {
+        'top-left':     raw[100:500, 100:500].std(),
+        'center':       roi.std(),
+        'bottom-right': raw[1500:1900, 2100:2500].std()
+    }
+    for zone, s in zones.items():
+        print(f"    {zone}: σ={s:.1f}")
+EOF</pre></div>
+<div class="callout"><strong>為什麼選這條路徑：</strong>用 1000µs（1ms）的極短曝光，dark current 的影響 ≈ 0.5e-/s × 0.001s = 0.0005 e-，可忽略。量到的 σ 就是純 read noise。分區域量測是為了確認雜訊是否空間均勻——若角落 σ 比中心大，可能是鏡頭漏光或 LSC 增益放大了角落雜訊。</div>
+
+  <h2>深入原理擴充：OV5647 的四種雜訊源的溫度與增益依賴性</h2>
+  <p>OV5647 的雜訊不是常數——它隨溫度、增益、曝光時間變化：</p>
+  <ul>
+    <li><strong>read noise</strong>：約 2.5 e-（gain=1），隨增益略增（gain=16 時約 4 e-），因為類比放大器引入額外雜訊。</li>
+    <li><strong>dark current</strong>：約 0.5 e-/s/°C。RPi5 機殼內 45°C 時，暗電流 ≈ 22.5 e-/s。若曝光 1 秒，dark current 雜訊 σ_dark = √(22.5×1) ≈ 4.7 e-——已超過 read noise。</li>
+    <li><strong>shot noise</strong>：σ = √N（N = 訊號電子數）。低光 N=100 時 σ=10；高光 N=4000 時 σ=63。Shot noise 在高光下是主導雜訊。</li>
+    <li><strong>hot pixel</strong>：OV5647 約有 0.01% 的缺陷像素，在遮光 RAW 中表現為固定亮點。</li>
+  </ul>
+  <div class="callout warn"><strong>大家以為沒问题但其實是陷阱：</strong>很多人以為「增益加倍 = 雜訊加倍」，但 OV5647 的類比放大器在高增益時<strong>read noise 也會增加</strong>（因為放大器自身的雜訊被放大）。所以 gain=16 時的總雜訊不是 gain=1 的 16 倍，而是更多——這在決定增益上限時很重要。</div>
+
+  <h2>診斷式疑難排解表</h2>
+  <table>
+    <tr><th>症狀</th><th>可能原因</th><th>解決方案</th></tr>
+    <tr><td>遮光 RAW 中有固定亮點（hot pixel）</td><td>感測器缺陷像素，OV5647 的正常現象</td><td>啟用 DPC（Defect Pixel Correction）；標定 hot pixel 位置</td></tr>
+    <tr><td>不同增益下 σ 的增加不成比例</td><td>類比放大器的非線性 + read noise 隨增益增加</td><td>量測完整 σ vs gain 曲線，找出「σ 暴增」的拐點作為增益上限</td></tr>
+    <tr><td>長曝光（>5s）暗部充滿雜訊</td><td>dark current 累積，尤其高溫環境</td><td>散熱（加散熱片）；限制長曝光時間；用 dark frame subtraction</td></tr>
+    <tr><td>NR 開到最強仍無法消除低光雜訊</td><td>源頭雜訊過高（增益太高），NR 無法「無中生有」</td><td>回到源頭：降增益、加曝光、補光；NR 只能收尾</td></tr>
+    <tr><td>平坦區 σ 低但紋理區 σ 高</td><td>紋理區的 shot noise 隨訊號增加（正常的 Poisson 特性）</td><td>這是物理限制，NR 強度需在「平坦區乾淨」與「紋理區保留」間取捨</td></tr>
+  </table>
+
+  <h2>進階挑戰題</h2>
+  <ol>
+    <li>量測 OV5647 在 25°C 和 50°C 下的 dark current 差異（用不同曝光時間的遮光 RAW，畫出 dark_current vs temperature 圖）。</li>
+    <li>設計一個「自動增益上限決定」腳本：從 gain=1 開始遞增，量測每級的 σ，當 σ 增加斜率 > 閾值時停止，自動輸出建議增益上限。</li>
+    <li>研究 OV5647 的 DPC 暫存器（0x4000-0x400C），分析其工作原理與限制。</li>
+  </ol>
+
   <h2>延伸閱讀</h2>
   <ul>
     <li>下一篇：<a href="unit-14.html">單元 14 · 清晰度/HDR/調校工作流</a>。</li>
