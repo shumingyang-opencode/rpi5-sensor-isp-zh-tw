@@ -188,6 +188,64 @@ echo "拍攝完成，用 Python 分析各張圖的 σ 和邊緣對比"</pre></di
     <li><a href="../learning-path.html">學習路線</a>：複習全站</li>
   </ul>
 
+  <h2>專案級端到端 Worked Example：tuning 版本管理與回歸自動化專案</h2>
+  <p>場景：你開始正式調校產品，需要一套「可回退、可歸因、可驗收」的 tuning 管理系統。本專案整合單元 14（工作流/回歸）、5（標準拍攝）、8（RAW 報告）、11/12/13（各區塊驗收）知識。</p>
+  <div class="demo-block"><div class="demo-label">tuning workflow：git + 回歸腳本</div><pre><span class="hl-c"># 1. tuning 納入 git，每階段一個版本</span>
+mkdir -p tuning
+cp /usr/share/libcamera/ipa/rpi/pisp/ov5647.json tuning/base.json
+git init tuning 2>/dev/null; cd tuning
+git add base.json && git commit -m "base: 出廠預設"
+
+<span class="hl-c"># 2. 每階段修改後 commit（可二分回退）</span>
+<span class="hl-c"># v1 黑位 → v2 LSC → v3 AWB/CCM → v4 NR/Sharpen</span>
+
+<span class="hl-c"># 3. 回歸腳本：四場景各拍一張，與基準比對</span>
+#!/bin/bash
+for SCENE in indoor daylight backlight lowlight; do
+  rpicam-still --raw --tuning-file tuning/v4_final.json \
+    --shutter 20000 --gain 1 -o reg_${SCENE}.dng
+done
+<span class="hl-c"># → 每張跑 raw_report.py + ΔE + 暗角比 + σ，與基準比較</span>
+<span class="hl-c"># → 任一指標劣化超過閾值 = 回歸，git 回退到上一版</span></pre></div>
+  <div class="demo-block"><div class="demo-label">回歸判斷</div><pre><span class="hl-c"># 輸出範例</span>
+場景        ΔE  暗角比  σ      狀態
+indoor     2.1  0.93   1.8    PASS
+daylight   2.4  0.94   1.6    PASS
+backlight  3.0  0.92   2.1    WARN (ΔE&gt;2.5)
+lowlight   2.8  0.90   3.5    FAIL (σ&gt;3.0)
+<span class="hl-c"># → 檢視 lowlight 是否可接受；不可 → 調整 NR 並 commit v5</span></pre></div>
+  <div class="callout"><strong>專案規模與跨單元整合：</strong>這套系統讓「調校」成為可審計的工程：git 版本讓每個參數變更可歸因（單元 14.7/14.9）、回歸腳本把單元 14.5 的清單自動化、每個指標對應一個單元的驗收方法（ΔE=11、暗角比=12、σ=13、RAW 報告=8）。一次只改一參數 + 跑回歸，是調校紀律的落地。</div>
+
+  <h2>量測/驗證 SOP：調校回歸測試</h2>
+  <ol>
+    <li>建立基準組：校正前的標準場景 RAW + 指標。</li>
+    <li>每次改動後，用同一管線重拍四場景（室內/日光/逆光/低光）。</li>
+    <li>逐場景計算 ΔE、暗角比、σ、RAW 健康報告。</li>
+    <li>與基準比較：任何指標劣化超閾值 = 回歸。</li>
+    <li>git commit 每次改動，寫明日期/場景/原因/結果。</li>
+    <li>回歸通過才可釋出該 tuning 版本。</li>
+  </ol>
+  <div class="callout"><strong>判讀指標：</strong>閾值建議：ΔE 平均 &lt;3、暗角比 &gt;0.9、低光 σ 增幅 &lt;20%；任何「看起來變差」都要量化確認，避免主觀判斷。</div>
+
+  <h2>平台間對照：調校工作流工具</h2>
+  <table>
+    <tr><th>面向</th><th>RPi5</th><th>Orange Pi</th><th>Orin Nano</th><th>Thor</th></tr>
+    <tr><td>tuning 格式</td><td>JSON（可讀可改）</td><td>—（無標準）</td><td>私有（工具編輯）</td><td>私有（Holoscan）</td></tr>
+    <tr><td>版本管理</td><td>git 直接管 JSON</td><td>—</td><td>工具匯出/匯入</td><td>工具管理</td></tr>
+    <tr><td>回歸自動化</td><td>自寫腳本（全開源）</td><td>DIY</td><td>NVIDIA 內建驗證</td><td>Holoscan pipeline</td></tr>
+    <tr><td>坑</td><td>無內建驗證工具</td><td>無工具鏈</td><td>黑箱、綁 NVIDIA</td><td>生態新</td></tr>
+  </table>
+
+  <h2>互動式檢核清單</h2>
+  <ul>
+    <li>- [ ] 能依序說出五步調校工作流（準備→校正→動態→美化→回歸）。</li>
+    <li>- [ ] 已把 tuning 納入 git 並建立版本結構。</li>
+    <li>- [ ] 已建立並驗證回歸腳本。</li>
+    <li>- [ ] 能說明 Sharpen 與 NR 成對調適的原因。</li>
+    <li>- [ ] 能說出 HDR 的適用場景與限制。</li>
+    <li>- [ ] 已完成一次「改動→回歸→commit」完整循環。</li>
+  </ul>
+
   <div class="next-prev">
     <a href="unit-13.html"><div class="np-label">← 上一篇</div><div class="np-name">單元 13 · 雜訊與降噪</div></a>
     <a class="np-next" href="unit-15.html"><div class="np-label">下一篇 →</div><div class="np-name">單元 15 · 四平台影像調校功能比較</div></a>

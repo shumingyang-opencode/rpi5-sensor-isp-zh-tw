@@ -172,6 +172,73 @@ EOF</pre></div>
     <li><a href="../learning-path.html">學習路線</a>：複習全站</li>
   </ul>
 
+  <h2>專案級端到端 Worked Example：多場景曝光策略專案</h2>
+  <p>場景：監控攝影機要在室內日光燈、室外日光、夜晚低光三種場景自動切換曝光策略，並避免 banding。本專案整合單元 10（AE/banding）、2（SNR）、13（雜訊）、14（回歸）知識，建立一套可驗證的曝光策略表。</p>
+  <div class="demo-block"><div class="demo-label">exposure_strategy.py：三場景策略</div><pre>from picamera2 import Picamera2
+
+<span class="hl-c"># 場景定義：增益上限、快門上限、banding 頻率</span>
+SCENES = {
+    "indoor_fluorescent": dict(max_gain=8.0, max_shutter=30000, banding=50),
+    "outdoor_day":        dict(max_gain=2.0, max_shutter=8000,  banding=None),
+    "night_lowlight":     dict(max_gain=12.0,max_shutter=66000, banding=50),
+}
+
+def apply(picam2, scene):
+    s = SCENES[scene]
+    ctrl = {
+        "AeEnable": True,
+        "AeConstraintMode": 0,
+        "ExposureCompensation": 0.0,
+        "AnalogueGain": s["max_gain"] / 2,
+    }
+    <span class="hl-c"># 若設 banding：曝光以半週期整數倍為準</span>
+    picam2.set_controls(ctrl)
+
+picam2 = Picamera2()
+picam2.configure(picam2.create_still_configuration())
+apply(picam2, "indoor_fluorescent")</pre></div>
+  <div class="demo-block"><div class="demo-label">驗證 banding 已消除</div><pre><span class="hl-c"># 在日光燈下拍兩張：20000µs（50Hz OK）vs 15000µs（非整數倍）</span>
+rpicam-still --raw --shutter 20000 --gain 2 -o ok50.dng
+rpicam-still --raw --shutter 15000 --gain 2 -o bad15.dng
+python3 - <<'EOF'
+import rawpy, numpy as np
+for f in ['ok50.dng','bad15.dng']:
+    roi = rawpy.imread(f).raw_image[900:1100, 500:2000]
+    print(f, "行間σ =", round(roi.mean(axis=1).std(),2))
+EOF
+<span class="hl-c"># 預期：ok50 行間σ 明顯小於 bad15（banding 消除）</span></pre></div>
+  <div class="callout"><strong>專案規模與跨單元整合：</strong>曝光策略把單元 10 的 AE 知識變成「產品設定」：banding 用 50/60Hz 週期（單元 10.4）、gain 上限來自 SNR 量測（單元 2/13）、場景回歸用單元 14 的清單。策略表放進設定檔，AE 就從「碰運氣」變成「可驗證的工程決策」。</div>
+
+  <h2>量測/驗證 SOP：AE 與 banding 驗證</h2>
+  <ol>
+    <li>在目標光源下跑 AE，用 <code>--info</code> 記錄收斂後的曝光/增益。</li>
+    <li>檢查收斂時間：換場景後 AE 應在 &lt;2 秒內穩定。</li>
+    <li>用行間 σ 量測確認 banding 消失（&lt;閾值）。</li>
+    <li>檢查高光：逆光場景高光不爆（用 AeConstraintMode=高光優先）。</li>
+    <li>在低光確認增益未超過 SNR 決定的上限。</li>
+    <li>三場景各錄一輪，存 log。</li>
+  </ol>
+  <div class="callout"><strong>判讀指標：</strong>行間 σ 在固定曝光整數倍下應比非整數倍小 50%+；AE 收斂後曝光/gain 落在策略表設定範圍內；增益超過上限 = 場景亮度不足，需補光或放寬。</div>
+
+  <h2>平台間對照：曝光控制</h2>
+  <table>
+    <tr><th>面向</th><th>RPi5</th><th>Orange Pi</th><th>Orin Nano</th><th>Thor</th></tr>
+    <tr><td>曝光介面</td><td>ExposureTime(µs) + AeEnable</td><td>v4l2 exposure（驅動單位）</td><td>SensorMode exp_time</td><td>SensorMode / Holoscan</td></tr>
+    <tr><td>banding 支援</td><td>libcamera 自動 + 手動整數倍</td><td>感測器 banding filter</td><td>NVIDIA 自動</td><td>NVIDIA 自動</td></tr>
+    <tr><td>測光模式</td><td>矩陣/中心/點 + EV</td><td>有限</td><td>多模式可選</td><td>多模式</td></tr>
+    <tr><td>坑</td><td>曝光被 row_time 取整</td><td>單位模糊</td><td>自動收斂快但黑箱</td><td>生態新</td></tr>
+  </table>
+
+  <h2>互動式檢核清單</h2>
+  <ul>
+    <li>- [ ] 能從 register 算出曝光行數（0x3501-0x3503）。</li>
+    <li>- [ ] 已建立並驗證三場景曝光策略表。</li>
+    <li>- [ ] 能用行間 σ 定量驗證 banding。</li>
+    <li>- [ ] 能說出 50Hz/60Hz 的曝光整數倍。</li>
+    <li>- [ ] 能判斷 AE 是否「受限」並採取正確行動。</li>
+    <li>- [ ] 已記錄各場景的 AE 收斂 log。</li>
+  </ul>
+
   <div class="next-prev">
     <a href="unit-09.html"><div class="np-label">← 上一篇</div><div class="np-name">單元 9 · 各平台 ISP 架構差異</div></a>
     <a class="np-next" href="unit-11.html"><div class="np-label">下一篇 →</div><div class="np-name">單元 11 · 白平衡與色彩（AWB / CCM）</div></a>

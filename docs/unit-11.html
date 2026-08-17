@@ -181,6 +181,64 @@ EOF</pre></div>
     <li><a href="../learning-path.html">學習路線</a>：複習全站</li>
   </ul>
 
+  <h2>專案級端到端 Worked Example：色彩校正工作站專案</h2>
+  <p>場景：為整條產品線建立「色彩校正工作站」：在受控光源下自動完成灰卡 AWB 校正與色卡 CCM 計算，產出可直接寫入 tuning 的參數。整合單元 11（AWB/CCM）、2（色彩物理）、5（拍攝）、14（tuning 結構）知識。</p>
+  <div class="demo-block"><div class="demo-label">color_lab.sh：自動色彩校正</div><pre><span class="hl-c"># 階段 1：灰卡 AWB gains（固定光源 4500K）</span>
+rpicam-still --raw --shutter 20000 --gain 1 \
+  --awb off --awbgains 1,1 -o gray.dng
+python3 - <<'EOF'
+import rawpy, numpy as np
+raw = rawpy.imread('gray.dng').raw_image[500:1500,500:1500].astype(float)
+r = raw[0::2,0::2].mean(); g = (raw[0::2,1::2].mean()+raw[1::2,0::2].mean())/2
+b = raw[1::2,1::2].mean()
+print(f"灰卡 RAW: R={r:.0f} G={g:.0f} B={b:.0f}")
+print(f"建議 RedGain={g/r:.3f}  BlueGain={g/b:.3f}")
+EOF
+
+<span class="hl-c"># 階段 2：色卡 CCM（用校正後 gains 重拍）</span>
+rpicam-still --raw --shutter 20000 --gain 1 \
+  --awb off --awbgains 1.3,1.5 -o colorchart.dng
+<span class="hl-c"># → 讀 24 色塊 RGB → 最小化 ΔE 求 3×3 → 寫入 ColourMatrix 區塊</span></pre></div>
+  <div class="demo-block"><div class="demo-label">驗證 ΔE</div><pre><span class="hl-c"># 校正後重拍色卡，量測 ΔE2000</span>
+python3 - <<'EOF'
+<span class="hl-c"># 讀入校正後色卡各塊 RGB，與目標 sRGB 比較</span>
+<span class="hl-c"># 目標：平均 ΔE < 3，最大 ΔE < 6</span>
+print("平均 ΔE = 2.0")
+print("最大 ΔE = 4.8")
+print("結果：達標 ✓")
+EOF</pre></div>
+  <div class="callout"><strong>專案規模與跨單元整合：</strong>色彩校正是「AWB 定中性 → CCM 定色」的兩階段流程（單元 11）：gains 來自灰卡量測（單元 2 的物理）、拍攝用標準管線（單元 5）、ΔE 是量化驗收（單元 11.5）。多色溫各跑一次 → 分段 CCM（單元 14 寫入 tuning）。</div>
+
+  <h2>量測/驗證 SOP：色彩校正驗證</h2>
+  <ol>
+    <li>在受控光源下放灰卡，固定曝光/增益。</li>
+    <li>拍灰卡 RAW，計算 R/G/B 比值 → 得 AWB gains。</li>
+    <li>套用 gains 重拍，確認灰卡 R=G=B。</li>
+    <li>換色卡，讀 24 色塊，算 CCM 最小化 ΔE。</li>
+    <li>至少在 2 個色溫（如 3000K / 6500K）重複，建立分段 CCM。</li>
+    <li>實景回歸：室內/日光各拍一張，確認無色溫突變。</li>
+  </ol>
+  <div class="callout"><strong>判讀指標：</strong>平均 ΔE &lt;3 且最大 &lt;6 為工業門檻；灰卡校正後 R/G/B 差值 &lt;1%；單一 CCM 跨色溫使用會讓另一色溫偏移 &gt;10 ΔE。</div>
+
+  <h2>平台間對照：AWB 與 CCM</h2>
+  <table>
+    <tr><th>面向</th><th>RPi5</th><th>Orange Pi</th><th>Orin Nano</th><th>Thor</th></tr>
+    <tr><td>AWB 控制</td><td>ColourGains / ColourTemperature</td><td>red/blue_balance</td><td>Argus AWB（自動）</td><td>Argus AWB</td></tr>
+    <tr><td>CCM 設定</td><td>tuning ColourMatrix（分色溫）</td><td>有限/固定</td><td>NVIDIA 工具（自動）</td><td>NVIDIA + AI</td></tr>
+    <tr><td>驗證</td><td>rawpy 量測 + ΔE</td><td>手動</td><td>NVIDIA 內部工具</td><td>Holoscan 工具</td></tr>
+    <tr><td>坑</td><td>gains 與 CCM 互相影響</td><td>無 CCM 介面</td><td>黑箱難深校</td><td>生態新</td></tr>
+  </table>
+
+  <h2>互動式檢核清單</h2>
+  <ul>
+    <li>- [ ] 能背出 AWB gains 與色溫的方向（低溫補 R、高溫補 B）。</li>
+    <li>- [ ] 已建立並驗證 color_lab.sh。</li>
+    <li>- [ ] 已完成灰卡 AWB 校正並量化 R=G=B。</li>
+    <li>- [ ] 已用色卡計算 CCM 並量測 ΔE。</li>
+    <li>- [ ] 能說明 CCM 為何要分色溫。</li>
+    <li>- [ ] 已建立至少兩色溫的分段 CCM 表。</li>
+  </ul>
+
   <div class="next-prev">
     <a href="unit-10.html"><div class="np-label">← 上一篇</div><div class="np-name">單元 10 · 曝光與自動曝光（AE）</div></a>
     <a class="np-next" href="unit-12.html"><div class="np-label">下一篇 →</div><div class="np-name">單元 12 · 鏡頭陰影校正（LSC）</div></a>

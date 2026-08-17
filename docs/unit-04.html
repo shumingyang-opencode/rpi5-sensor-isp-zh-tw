@@ -161,6 +161,67 @@ v4l2-ctl -d /dev/video0 --list-formats-ext</pre></div>
     <li><a href="../learning-path.html">學習路線</a>：複習全站</li>
   </ul>
 
+  <h2>專案級端到端 Worked Example：自訂 DT overlay 接入第二顆感測器</h2>
+  <p>場景：RPi5 的 Camera 1 要接一顆客製板上的 OV5647。官方 overlay 只覆蓋 Camera 0，你必須為 Camera 1 寫一份自訂 overlay，並驗證到 libcamera 看到兩顆相機。本專案整合單元 1（腳位）、3（I2C）、4（overlay/驅動）、6（bring-up）知識。</p>
+  <div class="demo-block"><div class="demo-label">dtoverlay 檔：ov5647-cam1 的 dts 概念</div><pre><span class="hl-c">// ov5647-cam1.dts（概念，欄位意義對應單元 4.4）</span>
+/dts-v1/;
+/plugin/;
+&amp;i2c_csi_dsi1 {                       <span class="hl-c"># Camera 1 的 I2C（i2c-10）</span>
+    compatible = "ovti,ov5647";        <span class="hl-c"># 匹配 ov5647.c</span>
+    reg = &lt;0x36&gt;;                       <span class="hl-c"># I2C 位址</span>
+    clocks = &lt;&amp;cam1_clk&gt;;               <span class="hl-c"># XCLK</span>
+    reset-gpios = &lt;...&gt;;               <span class="hl-c"># CAM_GPIO 1</span>
+    pwdn-gpios = &lt;...&gt;;
+    port { endpoint { data-lanes = &lt;1 2&gt;; }; };  <span class="hl-c"># 2-lane</span>
+};</pre></div>
+  <div class="demo-block"><div class="demo-label">編譯、套用、驗證</div><pre><span class="hl-c"># 1. 編譯 dts → dtbo（樹莓派工具鏈）</span>
+dtc -@ -I dts -O dtb -o ov5647-cam1.dtbo ov5647-cam1.dts
+sudo cp ov5647-cam1.dtbo /boot/firmware/overlays/
+
+<span class="hl-c"># 2. 加入 config.txt 並重啟</span>
+echo "dtoverlay=ov5647-cam1" | sudo tee -a /boot/firmware/config.txt
+sudo reboot
+
+<span class="hl-c"># 3. 驗證 probe（預期出現兩顆）</span>
+dmesg | grep -i ov5647
+sudo i2cdetect -y 10 | grep 36        <span class="hl-c"># Camera 1 的 bus</span>
+rpicam-hello --list-cameras
+<span class="hl-c"># 預期：0 : ov5647  1 : ov5647</span>
+
+<span class="hl-c"># 4. 驗證 media graph 兩條管線</span>
+media-ctl -p -d /dev/media0 | grep -E "entity|ov5647|unicam"</pre></div>
+  <div class="callout"><strong>專案規模與跨單元整合：</strong>自訂 overlay 是「客製板接入」的核心技能：compatible 對應驅動匹配（單元 4）、reg 對應 I2C（單元 3）、clocks/reset 對應上電時序（單元 6）、data-lanes 對應 MIPI lane 一致性（單元 6.3）。驗證到 list-cameras 出現兩顆 + media graph 兩條管線，就是專案完成標準。</div>
+
+  <h2>量測/驗證 SOP：驅動載入與 media graph 驗證</h2>
+  <ol>
+    <li><code>dmesg | grep -i ov5647</code> 確認兩顆都 probe（含 Chip ID）。</li>
+    <li><code>sudo i2cdetect -y 10</code>（Camera 1）與 <code>-y 22</code>（Camera 0）確認各自 0x36。</li>
+    <li><code>rpicam-hello --list-cameras</code> 確認兩顆 camera 索引。</li>
+    <li><code>media-ctl -p -d /dev/media0</code>（與 media1）比對感測器 pad 格式與 unicam sink 格式一致。</li>
+    <li>雙鏡頭各拍一張 RAW，確認無格式錯誤。</li>
+    <li>記錄 media graph 輸出存檔。</li>
+  </ol>
+  <div class="callout"><strong>判讀指標：</strong>source 與 sink 格式不一致（如 SGBRG10 vs SRGGB10）→ 色彩錯亂；只有一顆 probe → 檢查該 Camera 的 bus/overlay；list-cameras 空 → 回單元 1 硬體層。</div>
+
+  <h2>平台間對照：驅動與 device tree</h2>
+  <table>
+    <tr><th>面向</th><th>RPi5</th><th>Orange Pi</th><th>Orin Nano</th><th>Thor</th></tr>
+    <tr><td>overlay 機制</td><td>config.txt + dtbo（簡單）</td><td>overlays/ + 手改 dtb</td><td>dtb + kernel patch</td><td>dtb + Holoscan 描述</td></tr>
+    <tr><td>驅動來源</td><td>mainline（ov5647.c 等）</td><td>廠商 BSP</td><td>NVIDIA 維護</td><td>NVIDIA 維護</td></tr>
+    <tr><td>自訂感測器難度</td><td>中（文件齊全）</td><td>高（文件少）</td><td>高（需 NDA/簽約）</td><td>高（生態新）</td></tr>
+    <tr><td>排錯工具</td><td>dmesg + media-ctl</td><td>dmesg（陽春）</td><td>tegra 專用 tool</td><td>Holoscan CLI</td></tr>
+  </table>
+
+  <h2>互動式檢核清單</h2>
+  <ul>
+    <li>- [ ] 能逐欄解釋 DT overlay 每個欄位對驅動的意義。</li>
+    <li>- [ ] 已為 Camera 1 建立並驗證自訂 overlay。</li>
+    <li>- [ ] 能讀懂 media-ctl 輸出並判別格式不一致。</li>
+    <li>- [ ] 能說出 libcamera 五大元件與控制資料流。</li>
+    <li>- [ ] 能說出 unicam 的角色與 media 節點。</li>
+    <li>- [ ] 已記錄兩顆相機的 media graph 快照。</li>
+  </ul>
+
   <div class="next-prev">
     <a href="unit-03.html"><div class="np-label">← 上一篇</div><div class="np-name">單元 3 · 感測器通訊介面</div></a>
     <a class="np-next" href="unit-05.html"><div class="np-label">下一篇 →</div><div class="np-name">單元 5 · 第一個鏡頭跑起來</div></a>

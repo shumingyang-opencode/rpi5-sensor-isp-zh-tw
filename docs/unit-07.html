@@ -164,6 +164,64 @@ EOF</pre></div>
     <li><a href="../learning-path.html">學習路線</a>：複習全站</li>
   </ul>
 
+  <h2>專案級端到端 Worked Example：黑位量測工作站專案</h2>
+  <p>場景：你要為整批 OV5647 模組建立黑位資料庫（每顆模組黑位不同）。本專案建一個「遮光量測工作站」：自動拍黑框 → 算四通道黑位 → 判斷是否需分通道校正 → 產出 BlackLevel 設定建議。整合單元 7（黑位）、2（物理）、5（拍攝）、13（雜訊）知識。</p>
+  <div class="demo-block"><div class="demo-label">black_level_lab.sh：黑位工作站</div><pre>#!/bin/bash
+<span class="hl-c"># 遮光箱/鏡頭蓋確保全黑</span>
+for G in 1 2 4 8 16; do
+  rpicam-still --raw --gain $G --shutter 33000 \
+    --awb off --awbgains 1,1 -o black_g$G.dng 2>/dev/null
+done
+
+python3 - <<'EOF'
+import rawpy, numpy as np
+print("gain |   R   |  Gr   |  Gb   |   B   | max | hot>10σ")
+for g in [1,2,4,8,16]:
+    raw = rawpy.imread(f'black_g{g}.dng').raw_image
+    roi = raw[500:1500, 500:1500].astype(float)
+    r  = roi[0::2,0::2].mean(); gr = roi[0::2,1::2].mean()
+    gb = roi[1::2,0::2].mean(); b  = roi[1::2,1::2].mean()
+    hot = (roi > roi.mean() + 10*roi.std()).sum()
+    print(f" {g:2d} | {r:6.1f} | {gr:5.1f} | {gb:5.1f} | {b:6.1f} | {roi.max():4d} | {hot}")
+EOF</pre></div>
+  <div class="demo-block"><div class="demo-label">預期輸出與判讀</div><pre>gain |   R   |  Gr   |  Gb   |   B   | max | hot>10σ
+  1  |  100.2| 102.1| 101.8|  99.7 | 1080 | 3
+ 16  |  118.5| 120.0| 119.3| 117.2 | 1080 | 3
+<span class="hl-c"># 判讀：四通道差 &lt;20 階 → 可統一 BlackLevel；差 &gt;20 → 分通道</span>
+<span class="hl-c"># 黑位隨 gain 上升（100→118）→ 需在 tuning 分段或接受誤差</span>
+<span class="hl-c"># hot 固定幾顆 → 啟用 DPC（單元 13）</span></pre></div>
+  <div class="callout"><strong>專案規模與跨單元整合：</strong>黑位是 ISP 統計的地基（單元 7）：黑位錯 → AE/AWB 全歪。這個工作站把「量測 → 判讀 → 設定」自動化：量測用單元 2 的物理、拍攝用單元 5 的管線、判讀黑位漂移用單元 13 的雜訊知識。產出的 BlackLevel 直接寫進 tuning（單元 14）。</div>
+
+  <h2>量測/驗證 SOP：黑位校正驗證</h2>
+  <ol>
+    <li>遮光拍攝（鏡頭蓋 + 黑布，避免漏光）。</li>
+    <li>在 gain=1/2/4/8/16 各拍黑框 RAW。</li>
+    <li>取中央 ROI（避開四周漏光）計算四通道均值。</li>
+    <li>檢查 max 與 hot pixel 數量（&gt;10σ）。</li>
+    <li>寫入 tuning 的 BlackLevel 區塊後，重拍黑框確認四通道均值被校正到接近 0。</li>
+    <li>記錄黑位-增益曲線，供不同曝光設定使用。</li>
+  </ol>
+  <div class="callout"><strong>判讀指標：</strong>校正後黑框均值應 &lt;1 階；四通道殘差 &gt;2 階 = 校正值有誤；黑位隨增益漂移 &gt;15 階 = 需分段設定或接受（實務上 gain≤8 內偏移可忽略）。</div>
+
+  <h2>平台間對照：黑位與統計</h2>
+  <table>
+    <tr><th>面向</th><th>RPi5</th><th>Orange Pi</th><th>Orin Nano</th><th>Thor</th></tr>
+    <tr><td>黑位設定</td><td>tuning BlackLevel 分通道</td><td>感測器驅動控制</td><td>NVIDIA tuning（自動）</td><td>NVIDIA tuning</td></tr>
+    <tr><td>統計可見性</td><td>rpicam-still --info / IPA log</td><td>有限（V4L2）</td><td>ISP 統計（部分封閉）</td><td>Holoscan telemetry</td></tr>
+    <tr><td>黑位驗證</td><td>rawpy 讀 DNG BlackLevel</td><td>手動解 RAW</td><td>NVIDIA 工具</td><td>NVIDIA 工具</td></tr>
+    <tr><td>坑</td><td>DNG BlackLevel 可能誤寫</td><td>無 metadata</td><td>黑箱難驗證</td><td>生態新</td></tr>
+  </table>
+
+  <h2>互動式檢核清單</h2>
+  <ul>
+    <li>- [ ] 能依序說出 ISP 六區塊與校正順序（黑位→LSC→CCM→gamma）。</li>
+    <li>- [ ] 已建立並驗證 black_level_lab.sh。</li>
+    <li>- [ ] 能量測四通道黑位並判讀是否需分通道。</li>
+    <li>- [ ] 能解釋黑位錯誤如何污染 AE/AWB 統計。</li>
+    <li>- [ ] 已完成一次「寫入 tuning → 重拍驗證」迴圈。</li>
+    <li>- [ ] 已記錄黑位-增益曲線。</li>
+  </ul>
+
   <div class="next-prev">
     <a href="unit-06.html"><div class="np-label">← 上一篇</div><div class="np-name">單元 6 · Sensor Bring-up 與除錯</div></a>
     <a class="np-next" href="unit-08.html"><div class="np-label">下一篇 →</div><div class="np-name">單元 8 · RAW 擷取與資料格式</div></a>

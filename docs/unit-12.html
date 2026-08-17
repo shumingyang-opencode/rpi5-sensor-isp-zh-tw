@@ -194,6 +194,74 @@ EOF</pre></div>
     <li><a href="../learning-path.html">學習路線</a>：複習全站</li>
   </ul>
 
+  <h2>專案級端到端 Worked Example：LSC 校正自動化專案</h2>
+  <p>場景：鏡頭/模組批次更換頻繁，每次手動算 LSC 太慢。本專案建立「LSC 校正流水線」：拍均勻灰 → 分通道算網格增益 → 驗證暗角比 → 輸出 tuning 網格。整合單元 12（LSC）、7（黑位）、8（RAW）、5（拍攝）知識。</p>
+  <div class="demo-block"><div class="demo-label">lsc_pipeline.sh：LSC 校正流水線</div><pre>#!/bin/bash
+<span class="hl-c"># 1. 拍均勻灰（白牆/積分球）固定參數</span>
+rpicam-still --raw --shutter 20000 --gain 1 \
+  --awb off --awbgains 1,1 -o lsc_src.dng
+
+<span class="hl-c"># 2. 分通道算網格增益（以中央為 1.0）</span>
+python3 - <<'EOF'
+import rawpy, numpy as np
+raw = rawpy.imread('lsc_src.dng').raw_image.astype(float)
+h, w = raw.shape
+gh, gw = 13, 17                      <span class="hl-c"># libcamera 標準網格</span>
+ch, cw = h//gh, w//gw
+center = raw[h//2-50:h//2+50, w//2-50:w//2+50].mean()
+print("角落/中心 暗角比 =", round(raw[20:80,20:80].mean()/center, 3))
+<span class="hl-c"># 對每格輸出增益（此處以整體亮度示意，實作需分 RGGB）</span>
+for gy in range(gh):
+    row = []
+    for gx in range(gw):
+        cell = raw[gy*ch:(gy+1)*ch, gx*cw:(gx+1)*cw].mean()
+        row.append(f"{center/cell:.3f}")
+    print(" ".join(row))
+EOF
+<span class="hl-c"># 3. 將網格填入 tuning JSON 的 LensShading 區塊 → v2_lsc.json</span></pre></div>
+  <div class="demo-block"><div class="demo-label">驗證 LSC 成效</div><pre><span class="hl-c"># 套用新 tuning 重拍均勻灰</span>
+rpicam-still --raw --tuning-file v2_lsc.json --shutter 20000 \
+  --gain 1 --awb off --awbgains 1,1 -o lsc_after.dng
+python3 - <<'EOF'
+import rawpy, numpy as np
+raw = rawpy.imread('lsc_after.dng').raw_image.astype(float)
+c = raw[800:1200, 1100:1500].mean()
+corn = [raw[50,50],raw[50,-51],raw[-51,50],raw[-51,-51]]
+print("中央:", round(c,1), " 四角:", [round(x,1) for x in corn])
+print("暗角比:", round(min(corn)/c, 3), "(目標 >0.9)")
+EOF</pre></div>
+  <div class="callout"><strong>專案規模與跨單元整合：</strong>LSC 是「鏡頭+感測器+模組」組合特有（單元 12）：校正前先確認黑位已對（單元 7，否則網格被污染）、用 RAW 而非 JPEG（單元 8）、套用後用暗角比驗收（單元 12.4）。流水線產出的網格直接進 tuning（單元 14），換鏡頭時只需重跑一輪。</div>
+
+  <h2>量測/驗證 SOP：LSC 校正驗證</h2>
+  <ol>
+    <li>用均勻光源（積分球最佳、白牆替代）拍 RAW。</li>
+    <li>計算校正前暗角比（四角/中央）。</li>
+    <li>分通道（RGGB）算網格增益。</li>
+    <li>寫入 tuning 後重拍，量測校正後暗角比。</li>
+    <li>檢查角落偏色是否消除（分通道效果）。</li>
+    <li>換鏡頭/模組後重跑（LSC 組合特有）。</li>
+  </ol>
+  <div class="callout"><strong>判讀指標：</strong>校正後暗角比 &gt;0.9 為達標；角落偏色殘留 = 分通道網格未生效；低光下 LSC 放大角落雜訊 = 需降增益上限或接受暗角。</div>
+
+  <h2>平台間對照：LSC 校正</h2>
+  <table>
+    <tr><th>面向</th><th>RPi5</th><th>Orange Pi</th><th>Orin Nano</th><th>Thor</th></tr>
+    <tr><td>LSC 機制</td><td>tuning JSON 網格（17×13 等）</td><td>有限/後處理</td><td>NVIDIA 工具自動</td><td>NVIDIA 工具</td></tr>
+    <tr><td>網格可調性</td><td>節點數/分通道全可設</td><td>少</td><td>可自訂（工具）</td><td>可自訂</td></tr>
+    <tr><td>校正輸入</td><td>均勻灰 RAW（自拍）</td><td>手動</td><td>NVIDIA 校正流程</td><td>NVIDIA 校正流程</td></tr>
+    <tr><td>坑</td><td>白牆不均勻會污染網格</td><td>無標準工具</td><td>流程封閉</td><td>生態新</td></tr>
+  </table>
+
+  <h2>互動式檢核清單</h2>
+  <ul>
+    <li>- [ ] 能說出 lens shading 的 cos⁴ 成因與角落偏色。</li>
+    <li>- [ ] 已建立並驗證 lsc_pipeline.sh。</li>
+    <li>- [ ] 能量測校正前後暗角比並判讀。</li>
+    <li>- [ ] 能說出 LSC 為何是組合特有、需重做。</li>
+    <li>- [ ] 能分辨「分通道」與「僅亮度」校正的差異。</li>
+    <li>- [ ] 已完成一次「校正→驗證→存檔」迴圈。</li>
+  </ul>
+
   <div class="next-prev">
     <a href="unit-11.html"><div class="np-label">← 上一篇</div><div class="np-name">單元 11 · 白平衡與色彩（AWB / CCM）</div></a>
     <a class="np-next" href="unit-13.html"><div class="np-label">下一篇 →</div><div class="np-name">單元 13 · 雜訊與降噪</div></a>

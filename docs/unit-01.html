@@ -202,6 +202,66 @@ dmesg | grep -i "dma\|buffer\|cma" | tail -5</pre></div>
     <li><a href="../learning-path.html">學習路線</a>：複習全站</li>
   </ul>
 
+  <h2>專案級端到端 Worked Example：完整感光元件 bring-up 專案 — 從 DT overlay 到第一張圖</h2>
+  <p>場景：這是一顆全新的 OV5647 模組 + RPi5 開發板。目標是走完「硬體 → overlay → 媒體節點 → 第一張 RAW」的完整端到端流程，驗證整個相機生態鏈就緒。這個專案整合單元 1（CSI-2/生態）、3（I2C）、4（overlay/驅動）、5（出圖）的知識。</p>
+  <div class="demo-block"><div class="demo-label">端到端 bring-up：DT overlay → 第一張圖</div><pre><span class="hl-c"># 階段 0：硬體安裝（單元 1 排線 SOP）</span>
+<span class="hl-c"># 金手指朝彈片、插入到底、鎖扣壓平</span>
+
+<span class="hl-c"># 階段 1：確認 overlay 就緒</span>
+sudo dtoverlay -a | grep -E "ov5647|ov9281"
+<span class="hl-c"># 預期：ov5647 在清單中</span>
+
+<span class="hl-c"># 階段 2：確認 probe 與媒體節點</span>
+dmesg | grep -i -E "ov5647|unicam|csi" | tail -10
+<span class="hl-c"># 預期：ov5647 0-0036: Probing / Chip ID 0x5647，無 error</span>
+ls /dev/media* /dev/video*
+
+<span class="hl-c"># 階段 3：I2C 驗證感測器 ID（單元 3）</span>
+sudo i2cdetect -y 22 | grep 36          <span class="hl-c"># 預期看到 0x36</span>
+sudo i2ctransfer -y 22 w2@0x36 0x30 0x0a r1   <span class="hl-c"># 預期 0x56</span>
+sudo i2ctransfer -y 22 w2@0x36 0x30 0x0b r1   <span class="hl-c"># 預期 0x47</span>
+
+<span class="hl-c"># 階段 4：libcamera 偵測（單元 4/5）</span>
+rpicam-hello --list-cameras
+<span class="hl-c"># 預期：0 : ov5647 [2592x1944 10-bit RGGB] + Modes 清單</span>
+
+<span class="hl-c"># 階段 5：產出第一張 RAW</span>
+rpicam-still --raw --shutter 20000 --gain 1.0 --awb off --awbgains 1.0,1.0 -o first.dng
+ls -la first.dng
+<span class="hl-c"># 預期：first.dng 存在（RAW 檔）</span></pre></div>
+  <div class="callout"><strong>專案規模與跨單元整合：</strong>這是單元 1-6 的最小整合驗證——每個階段都對應一個先前單元的「最小驗收」。若任一階段失敗，回該單元的診斷表：階段 2 失敗回單元 1（排線/生態）、階段 3 失敗回單元 3（I2C）、階段 4 失敗回單元 4（overlay/驅動）。「從 overlay 到第一張圖」就是整個課程的骨架。</div>
+
+  <h2>量測/驗證 SOP：平台相機生態就緒驗證</h2>
+  <ol>
+    <li>排線重插（金手指朝彈片、壓平鎖扣），記錄插拔次數。</li>
+    <li><code>sudo dtoverlay -a | grep ov5647</code> 確認 overlay 清單。</li>
+    <li><code>dmesg | grep -i -E "unicam|ov5647|csi"</code> 確認無 error（回看最後 10 行）。</li>
+    <li><code>sudo i2cdetect -y 22</code> 確認 0x36 回應。</li>
+    <li><code>rpicam-hello --list-cameras</code> 確認 camera 0 出現。</li>
+    <li>拍一張 RAW 並用 rawpy 讀出 shape（2592×1944 且非全黑）。</li>
+  </ol>
+  <div class="callout"><strong>判讀指標：</strong>六步全過 = 生態就緒；dmesg 有任何 CSI/unicam error = 硬體層問題優先；list-cameras 空 = overlay 或 probe 層。把六步結果寫入 bring-up log。</div>
+
+  <h2>平台間對照：相機生態與 CSI 介面</h2>
+  <table>
+    <tr><th>面向</th><th>RPi5</th><th>Orange Pi</th><th>Orin Nano</th><th>Thor</th></tr>
+    <tr><td>CSI 連接器</td><td>15-pin ×2，4-lane</td><td>MIPI 排針，2-lane 常見</td><td>15-pin / 22-pin，GMSL 選配</td><td>HSB（乙太網路感測器）</td></tr>
+    <tr><td>感測器驅動來源</td><td>mainline 內核（ov5647/5640/9281）</td><td>廠商 BSP，版本雜</td><td>NVIDIA 自帶 + 社群</td><td>NVIDIA + Holoscan</td></tr>
+    <tr><td>overlay/DT 機制</td><td>config.txt + dtoverlay</td><td>overlays + 手改 dtb</td><td>device tree + kernel patch</td><td>device tree + YAML 描述</td></tr>
+    <tr><td>框架</td><td>libcamera（開源）</td><td>V4L2 / gst 陽春</td><td>Argus（閉源）</td><td>Argus / Holoscan</td></tr>
+    <tr><td>生態坑</td><td>排線品質敏感</td><td>BSP 驅動版本混亂</td><td>感測器支援需 NDA</td><td>新、文件少</td></tr>
+  </table>
+
+  <h2>互動式檢核清單</h2>
+  <ul>
+    <li>- [ ] 能背出 15-pin 連接器腳位與排線 SOP。</li>
+    <li>- [ ] 能逐層說明 libcamera 四層堆疊與各層操作對象。</li>
+    <li>- [ ] 能用 dmesg + i2cdetect + list-cameras 完成生態就緒驗證。</li>
+    <li>- [ ] 能說出「三個決定性問題」判斷感測器是否可用。</li>
+    <li>- [ ] 能說出 CSI-2 四層模型與 D-PHY HS/LP 的差異。</li>
+    <li>- [ ] 已把生態驗證六步結果寫入 bring-up log。</li>
+  </ul>
+
   <div class="next-prev">
     <a href="index.html"><div class="np-label">← 上一層</div><div class="np-name">單元教學目錄</div></a>
     <a class="np-next" href="unit-02.html"><div class="np-label">下一篇 →</div><div class="np-name">單元 2 · 影像感測器基礎</div></a>

@@ -195,6 +195,75 @@ ls -la compare_v1.jpg compare_v2.jpg</pre></div>
     <li><a href="../learning-path.html">學習路線</a>：複習全站</li>
   </ul>
 
+  <h2>專案級端到端 Worked Example：標準測試拍攝管線專案</h2>
+  <p>場景：所有後續調校（黑位/LSC/色彩/NR）都需要「可重現的拍攝」。本專案建立一套標準拍攝管線：固定參數、自動命名、產出 DNG + metadata 記錄，讓不同天拍的圖可以互相比較。整合單元 5（rpicam 旗標）、8（RAW）、14（版本管理）知識。</p>
+  <div class="demo-block"><div class="demo-label">capture_pipeline.sh：標準拍攝系統</div><pre>#!/bin/bash
+<span class="hl-c"># 用法：./capture_pipeline.sh &lt;標籤&gt; [shutter] [gain]</span>
+TAG=${1:-test}; SHUTTER=${2:-20000}; GAIN=${3:-1.0}
+OUT=shots/$(date +%Y%m%d_%H%M%S)_${TAG}
+mkdir -p shots
+
+<span class="hl-c"># 固定曝光/增益/AWB，拍 RAW（單元 5 範本）</span>
+rpicam-still --raw -o ${OUT}.dng \
+  --shutter $SHUTTER --gain $GAIN --awb off --awbgains 1.0,1.0
+
+<span class="hl-c"># 同時寫入 metadata（場景、條件）</span>
+cat &gt; ${OUT}.meta &lt;&lt;EOF
+date: $(date)
+tag: $TAG
+shutter_us: $SHUTTER
+gain: $GAIN
+awb: off (1.0,1.0)
+scene: （填寫：室內日光燈 / 日光 / 逆光 / 低光）
+EOF
+
+<span class="hl-c"># 立即用 rawpy 驗證 RAW 可讀且非全黑</span>
+python3 - <<EOF
+import rawpy, numpy as np
+raw = rawpy.imread('${OUT}.dng').raw_image
+print(f"shape={raw.shape} mean={raw[400:1600,400:1600].mean():.0f}")
+assert raw[400:1600,400:1600].mean() > 50, "RAW 太暗，檢查曝光"
+print("RAW 驗證通過")
+EOF
+echo "已產出 ${OUT}.dng + ${OUT}.meta"</pre></div>
+  <div class="demo-block"><div class="demo-label">使用與預期輸出</div><pre>./capture_pipeline.sh indoor_a 20000 1.0
+<span class="hl-c"># 預期輸出：</span>
+<span class="hl-c"># shape=(1944, 2592) mean=512</span>
+<span class="hl-c"># RAW 驗證通過</span>
+<span class="hl-c"># 已產出 shots/20260817_101530_indoor_a.dng + .meta</span>
+ls shots/</pre></div>
+  <div class="callout"><strong>專案規模與跨單元整合：</strong>這套管線是整個調校工作流的「地基」：固定參數保證可重現（單元 5）、RAW 產出供所有品質分析（單元 8）、自動命名 + metadata 支撐版本管理（單元 14）。往後每個調校改動都走同一管線，才能做 A/B 比較。</div>
+
+  <h2>量測/驗證 SOP：拍攝一致性驗證</h2>
+  <ol>
+    <li>固定相機、光源、拍攝距離與鏡頭設定。</li>
+    <li>用 capture_pipeline.sh 拍基準 RAW（室內日光燈，20000µs, gain 1）。</li>
+    <li>間隔 10 分鐘重拍一次，比較兩張 RAW 的 ROI 均值（差異 &lt;5%）。</li>
+    <li>確認 metadata 檔記錄完整（時間、參數、場景）。</li>
+    <li>用 <code>--info</code> 確認 AE/AWB 已關閉（無浮動）。</li>
+    <li>存檔並標記「基準」。</li>
+  </ol>
+  <div class="callout"><strong>判讀指標：</strong>兩張 RAW 均值差 &gt;5% = 光源或參數不穩，重拍；<code>--info</code> 出現非預期 ExposureTime = AE 沒關乾淨。一致性的目標是「同一場景，今天拍的與三個月後拍的可以比較」。</div>
+
+  <h2>平台間對照：標準拍攝工具</h2>
+  <table>
+    <tr><th>面向</th><th>RPi5</th><th>Orange Pi</th><th>Orin Nano</th><th>Thor</th></tr>
+    <tr><td>拍照 CLI</td><td>rpicam-still（成熟）</td><td>gst-launch / v4l2-ctl</td><td>argus_camera / nvgstcapture</td><td>argus / Holoscan</td></tr>
+    <tr><td>RAW 輸出</td><td>--raw 自動 DNG（含 metadata）</td><td>v4l2 裸 RAW（手解）</td><td>.nvraw（需轉換）</td><td>.nvraw / Holoscan</td></tr>
+    <tr><td>固定參數</td><td>--shutter/--gain/--awb off（簡單）</td><td>v4l2-ctl 手動設</td><td>--exp-time/--gain 可設</td><td>SensorMode 設定</td></tr>
+    <tr><td>坑</td><td>DNG metadata 可能誤寫</td><td>無 metadata 標準</td><td>raw 格式私有</td><td>工具新、文件少</td></tr>
+  </table>
+
+  <h2>互動式檢核清單</h2>
+  <ul>
+    <li>- [ ] 能逐欄讀懂 list-cameras 輸出。</li>
+    <li>- [ ] 已建立並驗證 capture_pipeline.sh。</li>
+    <li>- [ ] 已完成「間隔重拍」一致性驗證（&lt;5%）。</li>
+    <li>- [ ] 能說明 --raw 對調校的意義（ISP 前資料）。</li>
+    <li>- [ ] 能用 --info 判讀 AE/AWB 狀態。</li>
+    <li>- [ ] 已存一份基準 RAW 與 metadata。</li>
+  </ul>
+
   <div class="next-prev">
     <a href="unit-04.html"><div class="np-label">← 上一篇</div><div class="np-name">單元 4 · 相機框架與驅動</div></a>
     <a class="np-next" href="unit-06.html"><div class="np-label">下一篇 →</div><div class="np-name">單元 6 · Sensor Bring-up 與除錯</div></a>

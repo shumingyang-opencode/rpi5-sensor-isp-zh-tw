@@ -178,6 +178,71 @@ done > exposure_log.csv</pre></div>
     <li><a href="../learning-path.html">學習路線</a>：複習全站</li>
   </ul>
 
+  <h2>專案級端到端 Worked Example：感測器 I2C 探針工具箱專案</h2>
+  <p>場景：你將長期處理多顆 OV 感測器。與其每次打指令，不如建立一套可重用的 I2C 探針腳本：讀寫、dump、監控、回讀驗證一次到位。本專案整合單元 3（I2C 位元級）、6（bring-up）知識。</p>
+  <div class="demo-block"><div class="demo-label">建立 sensor_probe.sh 工具箱</div><pre>#!/bin/bash
+<span class="hl-c"># 用法：. ./sensor_probe.sh 然後用函式</span>
+BUS=22; ADDR=0x36
+sensor_read()  {  <span class="hl-c"># $1 = 16-bit register</span>
+  sudo i2ctransfer -y $BUS w2@$ADDR 0x${1:0:2} 0x${1:2:2} r1
+}
+sensor_write() {  <span class="hl-c"># $1 = register, $2 = value</span>
+  sudo i2ctransfer -y $BUS w3@$ADDR 0x${1:0:2} 0x${1:2:2} $2
+}
+sensor_id() {
+  echo "ID = $(sensor_read 300A)$(sensor_read 300B)"  <span class="hl-c"># 預期 0x5647</span>
+}
+sensor_dump() { <span class="hl-c"># 關鍵 register 群</span>
+  for r in 300A 300B 3034 3035 3036 3037 3501 3502 3503 350A 350B; do
+    printf "%s: %s\n" "$r" "$(sensor_read $r)"
+  done
+}
+sensor_monitor() { <span class="hl-c"># 串流中監控曝光，每秒一筆</span>
+  echo "t,exp_hi,exp_lo,gain"
+  for i in $(seq 1 30); do
+    EH=$(sensor_read 3501); EL=$(sensor_read 3502)
+    GA=$(sensor_read 350A)
+    echo "$(date +%s),$EH,$EL,$GA"
+    sleep 1
+  done
+}</pre></div>
+  <div class="demo-block"><div class="demo-label">驗證工具箱</div><pre>. ./sensor_probe.sh
+sensor_id          <span class="hl-c"># 預期：ID = 0x5647</span>
+sensor_read 3500   <span class="hl-c"># 讀曝光高位</span>
+sensor_write 3034 0x18; sensor_read 3034   <span class="hl-c"># 寫後回讀：預期 0x18</span>
+sensor_dump        <span class="hl-c"># 完整快照，記錄下來做 bring-up log</span></pre></div>
+  <div class="callout"><strong>專案規模與跨單元整合：</strong>這套工具是「帶得走」的資產：sensor_dump 對應單元 6 的 register 快照、sensor_monitor 對應單元 3 的即時曝光監控、sensor_id 對應單元 6 的 bring-up 第一步。往後每顆新感測器只需改 BUS/ADDR，其餘全部重用。安全守則：只在非串流時寫 register。</div>
+
+  <h2>量測/驗證 SOP：I2C 通訊健康驗證</h2>
+  <ol>
+    <li><code>sudo i2cdetect -y 22</code> 確認 0x36 回應。</li>
+    <li>讀 0x300A/0x300B 確認 ID = 0x5647。</li>
+    <li>執行「寫後回讀」：寫 0x3034=0x18，回讀確認一致。</li>
+    <li>在 streaming 時跑 sensor_monitor，確認讀值穩定（±1 內）。</li>
+    <li>檢查 dmesg 無 I2C timeout 錯誤。</li>
+    <li>記錄 bus 編號（Camera 0 → i2c-22，Camera 1 → i2c-10）。</li>
+  </ol>
+  <div class="callout"><strong>判讀指標：</strong>回讀不一致 = 暫存器 write-only 或需延遲；streaming 時讀值跳動 = 匯流排雜訊/排線耦合；全回 0xFF = 上拉或 RESET 問題（回單元 6 決策樹）。</div>
+
+  <h2>平台間對照：I2C 存取工具</h2>
+  <table>
+    <tr><th>面向</th><th>RPi5</th><th>Orange Pi</th><th>Orin Nano</th><th>Thor</th></tr>
+    <tr><td>Camera I2C bus</td><td>i2c-22 / i2c-10</td><td>i2c-0~3（依 BSP）</td><td>i2c-0 / i2c-30（依感測器槽）</td><td>HSB 乙太感測器（非本地 I2C）</td></tr>
+    <tr><td>常用工具</td><td>i2ctransfer/i2cdetect</td><td>i2ctransfer（需裝）</td><td>i2ctransfer / busybox</td><td>i2ctransfer（透過 carrier）</td></tr>
+    <tr><td>位址轉換</td><td>7-bit（0x36）</td><td>同（0x36/0x3c）</td><td>同（0x36）</td><td>同（register 相同）</td></tr>
+    <tr><td>坑</td><td>上拉 1.8V 別亂接 3.3V</td><td>bus 編號常因 BSP 而變</td><td>需先載入 NVIDIA driver</td><td>感測器連在乙太上，工具鏈不同</td></tr>
+  </table>
+
+  <h2>互動式檢核清單</h2>
+  <ul>
+    <li>- [ ] 能背出 OV5647 16-bit register 的 big-endian 寫入序。</li>
+    <li>- [ ] 已建立並驗證 sensor_probe.sh 工具箱。</li>
+    <li>- [ ] 能完成「寫後回讀」驗證並解釋其意義。</li>
+    <li>- [ ] 能說出 OV5647 與 OV5640 的 page 切換差異。</li>
+    <li>- [ ] 能在 streaming 中監控曝光 register 並判讀穩定性。</li>
+    <li>- [ ] 已記錄本機 Camera 0/1 的 I2C bus 編號。</li>
+  </ul>
+
   <div class="next-prev">
     <a href="unit-02.html"><div class="np-label">← 上一篇</div><div class="np-name">單元 2 · 影像感測器基礎</div></a>
     <a class="np-next" href="unit-04.html"><div class="np-label">下一篇 →</div><div class="np-name">單元 4 · 相機框架與驅動</div></a>

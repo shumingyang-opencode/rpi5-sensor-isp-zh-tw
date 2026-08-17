@@ -159,6 +159,57 @@ EOF</pre></div>
     <li><a href="../learning-path.html">學習路線</a>：複習全站</li>
   </ul>
 
+  <h2>專案級端到端 Worked Example：多平台選型評估專案</h2>
+  <p>場景：公司要為「智慧農業視覺系統」選平台，候選 RPi5 / Orange Pi / Orin Nano / Thor。你負責用本課程的框架（能力 × 工具鏈 × 可視性）做評估，並以同一顆感測器實測佐證。整合單元 15（比較）、9（架構）、11/12/13（品質指標）知識。</p>
+  <div class="demo-block"><div class="demo-label">平台評測矩陣（用本課指標）</div><pre><span class="hl-c"># 以 OV5647 為共同感測器，評測四平台</span>
+平台        ΔE(色彩)  暗角比  σ(雜訊)  工具鏈     可視性    NDA需求
+RPi5        2.1      0.93    1.8     開源齊全    高      無
+Orange Pi   3.2      0.90    2.2     陽春       中      無
+Orin Nano   2.4      0.92    1.9     封閉自動    低      部分
+Thor        2.0      0.94    1.7     Holoscan新  低      是
+
+<span class="hl-c"># 加權評分（依需求自訂權重）</span>
+<span class="hl-c"># 學習/教學 → 可視性 0.5：RPi5 勝</span>
+<span class="hl-c"># 量產自動化 → 工具鏈 0.5：Orin/Thor 勝</span>
+<span class="hl-c"># 客製深調 → 可調參數 0.5：RPi5 勝</span>
+
+<span class="hl-c"># 結論範例：</span>
+<span class="hl-c"># 首代產品驗證 → RPi5（快、看得見）</span>
+<span class="hl-c"># 量產部署 → Orin Nano（自動化、穩定）</span>
+<span class="hl-c"># Thor 待生態成熟再評估</span></pre></div>
+  <div class="callout"><strong>專案規模與跨單元整合：</strong>選型不是「誰畫質最好」，而是「誰符合我的約束」：量測數據用單元 11/12/13 的方法、架構用單元 9 的認知、介面用單元 15 的翻譯表。這份評估矩陣同時是給管理層的決策文件——有數據、有權重、有理由。</div>
+
+  <h2>量測/驗證 SOP：平台評測</h2>
+  <ol>
+    <li>統一感測器、光源、色卡/灰卡、曝光參數。</li>
+    <li>各平台拍 RAW，量測 ΔE、暗角比、σ。</li>
+    <li>評估工具鏈：RAW 取得、tuning 修改、debug 能力。</li>
+    <li>評估可視性：每層是否可讀可驗。</li>
+    <li>確認 NDA/文件限制與量產支援。</li>
+    <li>以加權矩陣產出建議並記錄理由。</li>
+  </ol>
+  <div class="callout"><strong>判讀指標：</strong>量測差異 &lt;15% 內視為等效（差異可能來自參數未對等）；工具鏈與可視性決定「後續維護成本」；NDA 決定「你能不能自己改」。</div>
+
+  <h2>平台間對照：選型關鍵面向</h2>
+  <table>
+    <tr><th>面向</th><th>RPi5</th><th>Orange Pi</th><th>Orin Nano</th><th>Thor</th></tr>
+    <tr><td>定位</td><td>學習/原型/教育</td><td>低成本 DIY</td><td>工業/多感測器/GMSL</td><td>次世代 AI/HSB</td></tr>
+    <tr><td>成本</td><td>低</td><td>最低</td><td>中高</td><td>高</td></tr>
+    <tr><td>調校自由度</td><td>最高</td><td>中</td><td>低（自動化）</td><td>低（AI）</td></tr>
+    <tr><td>上手速度</td><td>快</td><td>中</td><td>中（需 NDA）</td><td>慢（生態新）</td></tr>
+    <tr><td>坑</td><td>單一 ISP 管線</td><td>驅動品質不一</td><td>封閉、綁 NVIDIA</td><td>文件少、貴</td></tr>
+  </table>
+
+  <h2>互動式檢核清單</h2>
+  <ul>
+    <li>- [ ] 能說出「調校能力 = 參數 × 工具鏈 × 可視性」框架。</li>
+    <li>- [ ] 已完成一次含量測數據的平台評測。</li>
+    <li>- [ ] 能依需求（學習/量產/深調）推薦平台。</li>
+    <li>- [ ] 能說出 register 層跨平台相同的意義。</li>
+    <li>- [ ] 已建立跨平台參數翻譯表。</li>
+    <li>- [ ] 已產出選型決策文件並記錄理由。</li>
+  </ul>
+
   <div class="next-prev">
     <a href="unit-14.html"><div class="np-label">← 上一篇</div><div class="np-name">單元 14 · 清晰度、動態範圍與調校工作流</div></a>
     <a class="np-next" href="unit-16.html"><div class="np-label">下一篇 →</div><div class="np-name">單元 16 · 多感測器與實作案例</div></a>

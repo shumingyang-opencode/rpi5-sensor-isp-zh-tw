@@ -131,6 +131,69 @@ EOF</pre></div>
     <li><a href="../learning-path.html">學習路線</a>：複習全站</li>
   </ul>
 
+  <h2>專案級端到端 Worked Example：跨平台調校「翻譯層」專案</h2>
+  <p>場景：公司要把你在 RPi5 調好的 OV5647 成果搬上 Orin Nano。你必須建立一份「翻譯文件」：把 RPi5 的量測結果與參數對應到 NVIDIA 平台，並驗證同一顆感測器在兩平台的品質差距。整合單元 9（架構差異）、15（對照）、11/12/13（各校正區塊）知識。</p>
+  <div class="demo-block"><div class="demo-label">建立 cross_platform_map</div><pre><span class="hl-c"># RPi5 → Orin Nano 翻譯表（節錄）</span>
+| RPi5 (libcamera)            | Orin Nano (Argus)         |
+|-----------------------------|---------------------------|
+| ExposureTime (µs)           | SensorMode exp_time       |
+| AnalogueGain                | SensorMode gain           |
+| ColourGains [r,b]           | AWB gain (R/B)            |
+| tuning BlackLevel r/gr/gb/b | ispconfig black level     |
+| LensShading meshes          | NVIDIA LSC tool           |
+| ColourMatrix (CCM)          | NVIDIA color matrix tool  |
+
+<span class="hl-c"># 驗證流程：同一顆感測器，同一色卡/灰卡</span>
+<span class="hl-c"># 1. 兩平台各拍色卡 RAW（固定曝光/增益）</span>
+<span class="hl-c"># 2. 各算 ΔE 與黑位</span>
+<span class="hl-c"># 3. 若 Orin 的 ΔE 較差 → 用 NVIDIA 工具重校 CCM</span>
+<span class="hl-c"># 4. 記錄兩平台最終 ΔE，供選型決策</span></pre></div>
+  <div class="demo-block"><div class="demo-label">跨平台同一感測器品質對比</div><pre><span class="hl-c"># RPi5</span>
+rpicam-still --raw --shutter 20000 --gain 1 --awb off --awbgains 1,1 -o rpi5_cc.dng
+<span class="hl-c"># Orin（示意）</span>
+<span class="hl-c"># argus_camera --exp-time 20000 --gain 1 --file orin_cc.nvraw</span>
+<span class="hl-c"># 兩端解 RAW 後各算色卡 24 塊的 ΔE2000，輸出平均/最大 ΔE</span>
+python3 - <<'EOF'
+<span class="hl-c"># 假設已讀入兩邊色塊 RGB（與色卡目標值比較）</span>
+def delta_e(measured, target):
+    <span class="hl-c"># 用 colour-science 或自寫 deltaE2000</span>
+    return 2.5  <span class="hl-c"># 示範值</span>
+print("RPi5  平均ΔE=2.1 最大ΔE=4.5")
+print("Orin  平均ΔE=2.8 最大ΔE=5.9")
+print("結論：RPi5 手動 tuning 在此場景略優；差異主要來自 CCM 校準深度")
+EOF</pre></div>
+  <div class="callout"><strong>專案規模與跨單元整合：</strong>這專案的產出是「原理可平移」的證據：量測方法（ΔE、黑位、暗角比）在兩平台相同（單元 8/11/12），差別只在介面（單元 9/15）。用同一顆感測器做 A/B，把「平台差異」與「感測器差異」分離——這是選型與移植的標準方法。</div>
+
+  <h2>量測/驗證 SOP：平台能力評估</h2>
+  <ol>
+    <li>同一顆感測器（OV5647/5640）分別接入兩平台。</li>
+    <li>各平台以固定曝光/增益拍色卡與灰卡 RAW。</li>
+    <li>量測：ΔE（色彩）、黑位（統計地基）、暗角比（LSC）、σ（雜訊）。</li>
+    <li>比較四項指標與工具鏈可用性（開源/封閉）。</li>
+    <li>產出「平台能力矩陣」與建議。</li>
+  </ol>
+  <div class="callout"><strong>判讀指標：</strong>ΔE 平均 &lt;3 = 色彩達標；黑位是否可讀可設決定調校深度；σ 比較需同曝光同增益才公平。任何「看起來較差」都要先確認是否為參數未對等，而非平台缺陷。</div>
+
+  <h2>平台間對照：調校深度與工具鏈</h2>
+  <table>
+    <tr><th>面向</th><th>RPi5</th><th>Orange Pi</th><th>Orin Nano</th><th>Thor</th></tr>
+    <tr><td>可調參數</td><td>每區塊全參數（JSON）</td><td>感測器為主</td><td>高階參數（內部黑箱）</td><td>AI 自動化（可調性低）</td></tr>
+    <tr><td>可視性</td><td>全開源可追</td><td>陽春</td><td>統計可查、邏輯封閉</td><td>新、文件少</td></tr>
+    <tr><td>自動化</td><td>手動 + 自寫腳本</td><td>DIY</td><td>內建自動 tuning</td><td>AI tuning</td></tr>
+    <tr><td>學習價值</td><td>最高</td><td>中</td><td>低（效率高）</td><td>低（效率高）</td></tr>
+    <tr><td>坑</td><td>手動費時</td><td>工具殘缺</td><td>NDA / 黑箱</td><td>生態剛起步</td></tr>
+  </table>
+
+  <h2>互動式檢核清單</h2>
+  <ul>
+    <li>- [ ] 能說出感測器端與平台 ISP 的分工。</li>
+    <li>- [ ] 已建立 cross_platform_map 翻譯表。</li>
+    <li>- [ ] 能說明開源與閉源對調校的實際影響。</li>
+    <li>- [ ] 能設計公平的跨平台比較實驗（控制變數）。</li>
+    <li>- [ ] 能說出「原理可平移、介面要重學」的論點。</li>
+    <li>- [ ] 已產出一份平台能力矩陣。</li>
+  </ul>
+
   <div class="next-prev">
     <a href="unit-08.html"><div class="np-label">← 上一篇</div><div class="np-name">單元 8 · RAW 擷取與資料格式</div></a>
     <a class="np-next" href="unit-10.html"><div class="np-label">下一篇 →</div><div class="np-name">單元 10 · 曝光與自動曝光（AE）</div></a>

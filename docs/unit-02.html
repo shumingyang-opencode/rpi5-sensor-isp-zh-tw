@@ -173,6 +173,65 @@ EOF</pre></div>
     <li><a href="../learning-path.html">學習路線</a>：複習全站</li>
   </ul>
 
+  <h2>專案級端到端 Worked Example：感測器「真規格」驗證專案</h2>
+  <p>場景：datasheet 宣稱 OV5647 SNR max ≈ 36 dB、DR ≈ 68 dB。你為監控專案需要一份「實測規格表」，用來設定調校目標（gain 上限、曝光策略）。本專案整合單元 2（物理）、5（拍 RAW）、7（黑位）、13（雜訊）知識。</p>
+  <div class="demo-block"><div class="demo-label">建立實測規格表</div><pre><span class="hl-c"># 階段 1：量測黑位與飽和（決定動態範圍）</span>
+<span class="hl-c"># 遮鏡頭拍黑位；對強光源拍飽和</span>
+rpicam-still --raw --shutter 20000 --gain 1 -o black.dng
+rpicam-still --raw --shutter 2000  --gain 1 -o sat.dng
+
+<span class="hl-c"># 階段 2：量測 SNR vs gain（固定曝光、不同增益）</span>
+for GAIN in 1 2 4 8 16; do
+  rpicam-still --raw --gain $GAIN --shutter 33000 --awb off --awbgains 1,1 -o spec_g${GAIN}.dng 2>/dev/null
+done
+
+<span class="hl-c"># 階段 3：計算並產出規格表</span>
+python3 - <<'EOF'
+import rawpy, numpy as np
+def roi_stats(f):
+    raw = rawpy.imread(f).raw_image.astype(float)[600:1400, 600:1400]
+    return raw.mean(), raw.std()
+blk_m, _ = roi_stats('black.dng')
+sat_m, _ = roi_stats('sat.dng')
+print(f"BlackLevel = {blk_m:.0f}  Saturation = {sat_m:.0f}")
+print(f"動態範圍 = {20*np.log10((sat_m-blk_m)/1):.1f} dB")
+for g in [1,2,4,8,16]:
+    m, s = roi_stats(f'spec_g{g}.dng')
+    print(f"gain={g:2d}  signal={m:7.1f}  σ={s:5.1f}  SNR={20*np.log10(m/s):.1f} dB")
+EOF
+<span class="hl-c"># 預期輸出：DR 接近 datasheet（~65-68 dB）；SNR 隨 gain 上升而下滑</span></pre></div>
+  <div class="callout"><strong>專案規模與跨單元整合：</strong>把「資料表上的規格」變成「你板上實測的規格」是調校的第一步。SNR 用單元 2 的數學、黑位用單元 7 的量測、σ 用單元 13 的方法。這份實測表往後會是你的「調校目標來源」——例如「gain≤8 才能維持 SNR≥30dB」直接寫進 AE 限制。</div>
+
+  <h2>量測/驗證 SOP：SNR 與動態範圍量測</h2>
+  <ol>
+    <li>固定鏡頭、光源、拍攝距離；用 <code>--shutter 33000 --gain 1 --awb off</code> 拍基準 RAW。</li>
+    <li>遮鏡頭拍 black.dng，取中央 ROI 均值 = 黑位。</li>
+    <li>對強均勻光源拍 sat.dng，取中央 ROI 均值 = 飽和值。</li>
+    <li>依 gain = 1/2/4/8/16 各拍一張（固定曝光），計算 SNR。</li>
+    <li>畫出 σ vs gain 曲線，標出「σ 暴增拐點」= 增益上限。</li>
+    <li>把結果寫入規格表並存檔（供回歸比較）。</li>
+  </ol>
+  <div class="callout"><strong>判讀指標：</strong>黑位四通道差異 &lt;20 階為正常；SNR 在 gain≤8 應維持 &gt;30dB；DR 量測值與 datasheet 差 &gt;5dB 時，檢查黑位是否被 ISP 錯誤扣除。</div>
+
+  <h2>平台間對照：感測器規格驗證</h2>
+  <table>
+    <tr><th>面向</th><th>RPi5</th><th>Orange Pi</th><th>Orin Nano</th><th>Thor</th></tr>
+    <tr><td>RAW 取得</td><td>rpicam-still --raw（DNG）</td><td>v4l2-ctl + 自行解包</td><td>argus raw（.nvraw）</td><td>argus / Holoscan raw</td></tr>
+    <tr><td>黑位 metadata</td><td>DNG 內嵌 BlackLevel</td><td>無（需自行量測）</td><td>ISP 統計可查</td><td>ISP 統計可查</td></tr>
+    <tr><td>量測工具</td><td>rawpy/numpy 全開源</td><td>Python 自寫</td><td>NVIDIA 工具（部分封閉）</td><td>NVIDIA 工具</td></tr>
+    <tr><td>坑</td><td>DNG 黑位可能被誤寫</td><td>10-bit packing 要手解</td><td>raw 格式私有</td><td>生態新、工具少</td></tr>
+  </table>
+
+  <h2>互動式檢核清單</h2>
+  <ul>
+    <li>- [ ] 能解釋「加曝光勝過加增益」的 SNR 數學。</li>
+    <li>- [ ] 能背出 OV5647 的 Bayer order（RGGB）與 RAW 位元深（10-bit）。</li>
+    <li>- [ ] 已完成一次完整的 SNR vs gain 量測並畫出曲線。</li>
+    <li>- [ ] 能量測黑位與飽和值並算出動態範圍。</li>
+    <li>- [ ] 能說出 Rolling 與 Global 快門的時序差異與 banding 成因。</li>
+    <li>- [ ] 已建立自己的「實測規格表」並存檔。</li>
+  </ul>
+
   <div class="next-prev">
     <a href="unit-01.html"><div class="np-label">← 上一篇</div><div class="np-name">單元 1 · 平台相機生態總覽</div></a>
     <a class="np-next" href="unit-03.html"><div class="np-label">下一篇 →</div><div class="np-name">單元 3 · 感測器通訊介面</div></a>

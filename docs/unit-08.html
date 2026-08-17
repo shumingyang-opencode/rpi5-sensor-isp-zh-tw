@@ -194,6 +194,67 @@ EOF</pre></div>
     <li><a href="../learning-path.html">學習路線</a>：複習全站</li>
   </ul>
 
+  <h2>專案級端到端 Worked Example：自動化 RAW 健康報告專案</h2>
+  <p>場景：每次拍攝後都要確認 RAW 是否「乾淨」：Bayer order 正確、bit depth 正確、黑位合理、無缺陷像素。本專案建一個 raw_report.py 一鍵產出 RAW 健康報告，整合單元 8（格式）、7（黑位）、13（缺陷像素）、5（拍攝）知識。</p>
+  <div class="demo-block"><div class="demo-label">raw_report.py：一鍵 RAW 健康報告</div><pre>#!/usr/bin/env python3
+import sys, rawpy, numpy as np
+
+def report(path):
+    raw = rawpy.imread(path)
+    img = raw.raw_image
+    roi = img[img.shape[0]//4:3*img.shape[0]//4,
+              img.shape[1]//4:3*img.shape[1]//4].astype(float)
+    print(f"檔案: {path}")
+    print(f"shape: {img.shape}  white_level: {raw.white_level}")
+    print(f"Bayer pattern:\n{raw.raw_pattern}")
+    print(f"BlackLevel/ch: {raw.black_level_per_channel}")
+    cells = [roi[0::2,0::2].mean(), roi[0::2,1::2].mean(),
+             roi[1::2,0::2].mean(), roi[1::2,1::2].mean()]
+    print(f"通道均值: R={cells[0]:.0f} Gr={cells[1]:.0f} "
+          f"Gb={cells[2]:.0f} B={cells[3]:.0f}")
+    hot = (img > roi.mean() + 10*roi.std()).sum()
+    print(f"hot pixels (>10σ): {hot}  max: {img.max()}")
+
+report(sys.argv[1])</pre></div>
+  <div class="demo-block"><div class="demo-label">使用與預期輸出</div><pre>./raw_report.py first.dng
+<span class="hl-c"># 預期：</span>
+<span class="hl-c"># shape: (1944, 2592)  white_level: 1023</span>
+<span class="hl-c"># Bayer pattern 顯示 0/1/2 排列（驗證 RGGB）</span>
+<span class="hl-c"># BlackLevel/ch 四通道合理（~100）</span>
+<span class="hl-c"># 通道均值差異不大、hot pixels 少</span>
+<span class="hl-c"># 判讀：任一異常 → 回對應單元診斷</span></pre></div>
+  <div class="callout"><strong>專案規模與跨單元整合：</strong>這份報告是每次拍攝後的第一道檢查：Bayer order 驗證用單元 8 的方法、黑位用單元 7、缺陷像素用單元 13。把它掛進 capture_pipeline.sh（單元 5）結尾，每拍一張自動產報告。raw_pattern 與預期不符 = 別急著改 CCM，先查 order（單元 8.2 陷阱）。</div>
+
+  <h2>量測/驗證 SOP：RAW 完整性驗證</h2>
+  <ol>
+    <li>用 <code>--raw</code> 拍攝基準 RAW（固定參數）。</li>
+    <li>執行 raw_report.py，檢查 shape 與 white_level（2592×1944 / 1023）。</li>
+    <li>核對 raw_pattern 與預期 Bayer order（RGGB）。</li>
+    <li>檢查四通道黑位（差異 &lt;20 階）與均值合理性。</li>
+    <li>檢查 hot pixel 數量與 max 值。</li>
+    <li>存報告，與基準比較（回歸用）。</li>
+  </ol>
+  <div class="callout"><strong>判讀指標：</strong>white_level 非 1023 = bit depth 解讀錯（單元 8.7）；通道均值全 0 = black_level 誤設；order 錯 = 色彩全亂；hot pixels 暴增 = 溫度或缺陷擴散。</div>
+
+  <h2>平台間對照：RAW 格式與解析</h2>
+  <table>
+    <tr><th>面向</th><th>RPi5</th><th>Orange Pi</th><th>Orin Nano</th><th>Thor</th></tr>
+    <tr><td>RAW 封裝</td><td>DNG（含 metadata）</td><td>裸 RAW（V4L2）</td><td>.nvraw（私有）</td><td>.nvraw / Holoscan</td></tr>
+    <tr><td>解析工具</td><td>rawpy / dcraw</td><td>numpy 手解 packing</td><td>NVIDIA 專用轉換</td><td>NVIDIA 專用轉換</td></tr>
+    <tr><td>Bayer order 驗證</td><td>raw_pattern 欄位</td><td>自行判斷（純色卡）</td><td>ISP 設定宣告</td><td>ISP 設定宣告</td></tr>
+    <tr><td>坑</td><td>metadata 可能誤寫</td><td>10-bit packing 要手解</td><td>格式不公開</td><td>工具少</td></tr>
+  </table>
+
+  <h2>互動式檢核清單</h2>
+  <ul>
+    <li>- [ ] 能說出 fourcc 與 CSI/Sensor order 的關係。</li>
+    <li>- [ ] 已建立並驗證 raw_report.py。</li>
+    <li>- [ ] 能用純色卡驗證 Bayer order。</li>
+    <li>- [ ] 能說出 10-bit packing（packed/unpacked）的差異。</li>
+    <li>- [ ] 能解釋 bit depth 對動態範圍的影響。</li>
+    <li>- [ ] 已完成一次 RAW 健康報告並存檔。</li>
+  </ul>
+
   <div class="next-prev">
     <a href="unit-07.html"><div class="np-label">← 上一篇</div><div class="np-name">單元 7 · ISP 管線深入</div></a>
     <a class="np-next" href="unit-09.html"><div class="np-label">下一篇 →</div><div class="np-name">單元 9 · 各平台 ISP 架構差異</div></a>

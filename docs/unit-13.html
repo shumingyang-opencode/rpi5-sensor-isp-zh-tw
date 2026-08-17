@@ -198,6 +198,69 @@ EOF</pre></div>
     <li><a href="../learning-path.html">學習路線</a>：複習全站</li>
   </ul>
 
+  <h2>專案級端到端 Worked Example：感測器雜訊特性資料庫專案</h2>
+  <p>場景：要建立每顆感測器型號的「雜訊特性曲線庫」（σ vs gain、dark current vs 曝光、hot pixel 地圖），供演算法與調校決策使用。整合單元 13（雜訊）、2（物理）、7（黑位）、5（拍攝）知識。</p>
+  <div class="demo-block"><div class="demo-label">noise_db.sh：雜訊資料庫</div><pre>#!/bin/bash
+<span class="hl-c"># 1. read noise：遮光 + 短曝光（1ms）不同增益</span>
+for G in 1 2 4 8 16; do
+  rpicam-still --raw --gain $G --shutter 1000 \
+    --awb off --awbgains 1,1 -o rn_g$G.dng 2>/dev/null
+done
+
+<span class="hl-c"># 2. dark current：遮光 + 長曝光不同時長</span>
+for T in 1000 10000 50000 100000; do
+  rpicam-still --raw --gain 1 --shutter $T \
+    --awb off --awbgains 1,1 -o dc_t$T.dng 2>/dev/null
+done
+
+python3 - <<'EOF'
+import rawpy, numpy as np
+print("== read noise（短曝 1ms，σ 即 read noise）==")
+for g in [1,2,4,8,16]:
+    roi = rawpy.imread(f'rn_g{g}.dng').raw_image[600:1400,600:1400]
+    print(f" gain={g:2d}  σ={roi.std():5.2f}")
+
+print("== dark current（黑位均值 vs 曝光，slope=暗電流）==")
+means = []
+for t in [1000,10000,50000,100000]:
+    m = rawpy.imread(f'dc_t{t}.dng').raw_image[600:1400,600:1400].mean()
+    means.append((t,m))
+    print(f" {t:6d}µs  mean={m:6.1f}")
+slope = (means[-1][1]-means[0][1])/(means[-1][0]-means[0][0])
+print(f" 暗電流斜率 ≈ {slope*1e6:.2f} e-/s（10-bit 單位換算）")
+EOF</pre></div>
+  <div class="callout"><strong>專案規模與跨單元整合：</strong>這份資料庫是「調校決策的依據」：σ vs gain 決定增益上限（單元 13.2）、dark current 決定長曝光限制（單元 2）、hot pixel 地圖交給 DPC（單元 13.4）。所有量測用單元 5 的標準管線，黑位用單元 7 方法排除。資料庫隨模組批次更新，比較批次品質。</div>
+
+  <h2>量測/驗證 SOP：雜訊量測</h2>
+  <ol>
+    <li>遮光 + 短曝光（1ms）量 read noise（各增益）。</li>
+    <li>遮光 + 變長曝光量 dark current（畫黑位 vs 曝光斜率）。</li>
+    <li>灰卡量總雜訊（shot + read）與 SNR。</li>
+    <li>建立 hot pixel 地圖（遮光 RAW 的 &gt;10σ 位置）。</li>
+    <li>畫出 σ vs gain 曲線，標出增益上限拐點。</li>
+    <li>存資料庫並納入版本管理。</li>
+  </ol>
+  <div class="callout"><strong>判讀指標：</strong>gain 每級 σ 增幅平穩，出現「暴增」拐點即增益上限；dark current 斜率隨溫度上升；hot pixel 數 &gt;0.1% 需啟用 DPC。</div>
+
+  <h2>平台間對照：雜訊與降噪</h2>
+  <table>
+    <tr><th>面向</th><th>RPi5</th><th>Orange Pi</th><th>Orin Nano</th><th>Thor</th></tr>
+    <tr><td>NR 控制</td><td>tuning Denoise（luma/chroma）</td><td>後處理</td><td>NVIDIA 自動（kernel 可調）</td><td>AI 驅動</td></tr>
+    <tr><td>DPC</td><td>感測器端（OV5647 內建）</td><td>感測器端</td><td>NVIDIA 處理</td><td>NVIDIA 處理</td></tr>
+    <tr><td>雜訊量測</td><td>rawpy 全開源</td><td>手動解 RAW</td><td>NVIDIA 工具</td><td>Holoscan</td></tr>
+    <tr><td>坑</td><td>NR 過強塑膠感</td><td>無 NR 介面</td><td>黑箱難深調</td><td>生態新</td></tr>
+  </table>
+
+  <h2>互動式檢核清單</h2>
+  <ul>
+    <li>- [ ] 能說出四種雜訊的來源與模型。</li>
+    <li>- [ ] 已建立並驗證 noise_db.sh。</li>
+    <li>- [ ] 能量測 read noise 與 dark current 斜率。</li>
+    <li>- [ ] 已畫出 σ vs gain 曲線並定出增益上限。</li>
+    <li>- [ ] 能說明 DPC 與 NR 的順序與分工。</li>
+    <li>- [ ] 已完成一份雜訊特性資料庫並存檔。</li>
+  </ul>
+
   <div class="next-prev">
     <a href="unit-12.html"><div class="np-label">← 上一篇</div><div class="np-name">單元 12 · 鏡頭陰影校正（LSC）</div></a>
     <a class="np-next" href="unit-14.html"><div class="np-label">下一篇 →</div><div class="np-name">單元 14 · 清晰度、動態範圍與調校工作流</div></a>

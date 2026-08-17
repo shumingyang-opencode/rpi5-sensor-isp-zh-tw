@@ -201,6 +201,66 @@ rpicam-still --raw -o test.dng --shutter 20000 --gain 1</pre></div>
     <li><a href="../learning-path.html">學習路線</a>：複習全站</li>
   </ul>
 
+  <h2>專案級端到端 Worked Example：一鍵自動化 bring-up 專案</h2>
+  <p>場景：生產線要驗證每塊客製板，不能靠人肉一步步打指令。本專案把單元 6 的決策樹寫成自動化腳本：依序驗證 overlay → I2C → ID → PLL → 出圖，任何一步失敗立即中斷並報出根因。整合單元 6（決策樹）、3（I2C）、4（overlay）、5（出圖）。</p>
+  <div class="demo-block"><div class="demo-label">autobringup.sh：一鍵 bring-up</div><pre>#!/bin/bash
+set -e
+BUS=22; ADDR=0x36
+fail() { echo "✗ FAIL: $1"; exit 1; }
+pass() { echo "✓ $1"; }
+
+<span class="hl-c"># 步驟 1：overlay 就緒</span>
+dtoverlay -a | grep -q ov5647 && pass "overlay 就緒" || fail "無 ov5647 overlay"
+
+<span class="hl-c"># 步驟 2：I2C 有回應</span>
+sudo i2cdetect -y $BUS | grep -q 36 && pass "I2C 0x36 回應" || fail "I2C 無回應"
+
+<span class="hl-c"># 步驟 3：讀感測器 ID</span>
+HI=$(sudo i2ctransfer -y $BUS w2@$ADDR 0x30 0x0a r1)
+LO=$(sudo i2ctransfer -y $BUS w2@$ADDR 0x30 0x0b r1)
+[ "$HI$LO" = "0x560x47" ] && pass "ID=$HI$LO" || fail "ID 錯誤=$HI$LO"
+
+<span class="hl-c"># 步驟 4：PLL 快照（記錄於 log）</span>
+for r in 3034 3035 3036 3037; do
+  printf "PLL %s=%s\n" "$r" "$(sudo i2ctransfer -y $BUS w2@$ADDR 0x${r:0:2} 0x${r:2:2} r1)"
+done
+
+<span class="hl-c"># 步驟 5：出圖驗證</span>
+rpicam-hello --list-cameras | grep -q ov5647 && pass "libcamera 偵測" || fail "list-cameras 空"
+rpicam-still --raw --shutter 20000 --gain 1 -o /tmp/bringup.dng && pass "出圖 OK"
+echo "=== bring-up 全部通過 ==="</pre></div>
+  <div class="callout"><strong>專案規模與跨單元整合：</strong>這就是單元 6 決策樹的「可執行版本」：步驟 1-2 對應決策樹步驟 A/B、步驟 3 對應步驟 C、步驟 5 對應出圖。量產時把它掛進 CI 或生產線，每一塊板 30 秒內判定好壞。失敗訊息直接對應診斷表，維修人員不用懂原理也能定位。</div>
+
+  <h2>量測/驗證 SOP：Bring-up 驗證</h2>
+  <ol>
+    <li>確認上電時序（AVDD→DOVDD→DVDD→XCLK→RESET）由 overlay 正確管理。</li>
+    <li>跑 autobringup.sh，逐項通過才放行。</li>
+    <li>手動檢查 dmesg：<code>ov5647: Probing</code> 與 Chip ID 訊息。</li>
+    <li>讀 PLL 四 register，與 ov5647.c init table 對照。</li>
+    <li>確認 MIPI lane 設定（0x4741=0x00 為 2-lane）與 DT data-lanes 一致。</li>
+    <li>存 bring-up log（含 PLL 快照與出圖 RAW 的 hash）。</li>
+  </ol>
+  <div class="callout"><strong>判讀指標：</strong>任何一步失敗即中斷並報根因（腳本已含）；PLL 值與 init table 不符 = 驅動被改過；出圖全黑 = 回單元 10 查曝光。Bring-up 通過標準 = 五步驟全綠。</div>
+
+  <h2>平台間對照：上電時序與 PLL</h2>
+  <table>
+    <tr><th>面向</th><th>RPi5</th><th>Orange Pi</th><th>Orin Nano</th><th>Thor</th></tr>
+    <tr><td>上電管理</td><td>overlay 的 reset/pwdn GPIO</td><td>BSP 驅動自管</td><td>tegracam + device tree</td><td>tegracam / Holoscan</td></tr>
+    <tr><td>XCLK 來源</td><td>cam_clk（可調頻率）</td><td>CLK 控制器</td><td>sensor clock tree</td><td>HSB 時脈</td></tr>
+    <tr><td>PLL 檢查</td><td>i2ctransfer 讀 0x3034-0x3037</td><td>同（register 相同）</td><td>同（register 相同）</td><td>同（register 相同）</td></tr>
+    <tr><td>坑</td><td>RESET 未釋放即下 I2C</td><td>上電順序在 BSP 黑箱</td><td>需 NVIDIA driver 先載</td><td>感測器經乙太、時序不同</td></tr>
+  </table>
+
+  <h2>互動式檢核清單</h2>
+  <ul>
+    <li>- [ ] 能背出 OV5647 上電時序六步。</li>
+    <li>- [ ] 已建立並驗證 autobringup.sh。</li>
+    <li>- [ ] 能解釋 PLL 四 register 的作用與檢查方法。</li>
+    <li>- [ ] 能說出 MIPI lane 設定一致性的檢查點。</li>
+    <li>- [ ] 能在 30 秒內用決策樹定位「相機沒畫面」。</li>
+    <li>- [ ] 已保存一份完整 bring-up log。</li>
+  </ul>
+
   <div class="next-prev">
     <a href="unit-05.html"><div class="np-label">← 上一篇</div><div class="np-name">單元 5 · 第一個鏡頭跑起來</div></a>
     <a class="np-next" href="unit-07.html"><div class="np-label">下一篇 →</div><div class="np-name">單元 7 · ISP 管線深入</div></a>

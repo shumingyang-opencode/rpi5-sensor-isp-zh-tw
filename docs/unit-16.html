@@ -166,6 +166,67 @@ rpicam-still --tuning-file tuning_v4_final.json \
     <li><a href="../learning-path.html">學習路線</a>：複習全站</li>
   </ul>
 
+  <h2>專案級端到端 Worked Example：雙鏡頭立體視覺 bring-up 專案</h2>
+  <p>場景：建立一套「雙 OV5647 立體視覺」系統：兩顆相機同步曝光、各自調校、輸出校正後的成對圖。整合單元 16（多感測器）、1（雙鏡頭）、4（overlay）、11/12/13（調校）、15（平台對照）知識。</p>
+  <div class="demo-block"><div class="demo-label">雙鏡頭同步 bring-up</div><pre><span class="hl-c"># 1. 確認兩顆相機（Camera 0 + Camera 1）</span>
+rpicam-hello --list-cameras
+<span class="hl-c"># 預期：0 : ov5647  1 : ov5647</span>
+
+<span class="hl-c"># 2. picamera2 同步配置（同尺寸/同參數）</span>
+python3 - <<'EOF'
+from picamera2 import Picamera2
+cam0 = Picamera2(0); cam1 = Picamera2(1)
+cfg = lambda c: c.create_still_configuration(main={"size":(1296,972),"format":"RGB888"})
+cam0.configure(cfg(cam0)); cam1.configure(cfg(cam1))
+<span class="hl-c"># 固定相同曝光/增益/AWB，確保兩眼一致</span>
+for c in (cam0, cam1):
+    c.set_controls({"AeEnable":False,"ExposureTime":20000,
+                    "AnalogueGain":1.0,"AwbEnable":False})
+cam0.start(); cam1.start()
+cam0.capture_file("left.jpg"); cam1.capture_file("right.jpg")
+cam0.stop(); cam1.stop()
+print("立體對輸出完成")
+EOF
+
+<span class="hl-c"># 3. 驗證兩眼一致性</span>
+python3 - <<'EOF'
+import cv2, numpy as np
+l = cv2.imread('left.jpg'); r = cv2.imread('right.jpg')
+print("亮度差(mean abs):", np.abs(l.astype(float)-r.astype(float)).mean())
+<span class="hl-c"># 目標 < 3（同場景兩眼亮度應幾乎一致）</span>
+EOF</pre></div>
+  <div class="callout"><strong>專案規模與跨單元整合：</strong>立體視覺的關鍵是「兩眼一致性」：同步曝光用單元 16 的多相機能力、兩眼參數相同用單元 10/11 的控制、各自的 LSC/CCM 用單元 12/11 校正（每顆鏡頭各自校正後亮度才會一致）。這是最後一個整合專案——它用到本課程幾乎每一單元。</div>
+
+  <h2>量測/驗證 SOP：整合系統驗收</h2>
+  <ol>
+    <li>逐一 bring-up 兩顆相機（autobringup.sh 各跑一次）。</li>
+    <li>確認兩顆在 list-cameras 同時出現。</li>
+    <li>同步拍攝，驗證兩眼亮度差 &lt;3（灰度）。</li>
+    <li>各跑 RAW 健康報告與黑位（兩顆各自校正）。</li>
+    <li>色彩/暗角/雜訊各達標後，做場景回歸。</li>
+    <li>輸出完整 bring-up + 調校文件。</li>
+  </ol>
+  <div class="callout"><strong>判讀指標：</strong>兩眼亮度差 &gt;5 = 曝光/增益未同步或 LSC 未各自校正；一顆色彩偏差 = 該顆的 CCM/黑位未對；任一顆失敗 = 用該顆的診斷表定位。</div>
+
+  <h2>平台間對照：多感測器能力</h2>
+  <table>
+    <tr><th>面向</th><th>RPi5</th><th>Orange Pi</th><th>Orin Nano</th><th>Thor</th></tr>
+    <tr><td>同步相機數</td><td>2（雙 CSI）</td><td>1-2（依板型）</td><td>多路（GMSL 可到 8+）</td><td>多路（HSB 乙太）</td></tr>
+    <tr><td>同步機制</td><td>軟體同步（誤差較大）</td><td>—</td><td>硬體同步（GPIO/trigger）</td><td>硬體同步（乙太精準）</td></tr>
+    <tr><td>調校工具</td><td>每顆各自 tuning JSON</td><td>—</td><td>NVIDIA 批次工具</td><td>Holoscan pipeline</td></tr>
+    <tr><td>坑</td><td>雙顆同 I2C 位址要分 bus</td><td>能力有限</td><td>成本高、NDA</td><td>生態新</td></tr>
+  </table>
+
+  <h2>互動式檢核清單</h2>
+  <ul>
+    <li>- [ ] 能列出客製 OV 接入四步（硬體→overlay→驅動→調校）。</li>
+    <li>- [ ] 已完成雙鏡頭同步 bring-up。</li>
+    <li>- [ ] 能驗證兩眼一致性（亮度差 &lt;3）。</li>
+    <li>- [ ] 已為每顆鏡頭各自完成 LSC/CCM 校正。</li>
+    <li>- [ ] 已寫出自己的 bring-up SOP 與調校流程文件。</li>
+    <li>- [ ] 已將兩份文件放入 repo 成為團隊資產。</li>
+  </ul>
+
   <div class="next-prev">
     <a href="unit-15.html"><div class="np-label">← 上一篇</div><div class="np-name">單元 15 · 四平台影像調校功能比較</div></a>
     <a class="np-next" href="index.html"><div class="np-label">課程完成 →</div><div class="np-name">回首頁 · 單元教學目錄</div></a>
